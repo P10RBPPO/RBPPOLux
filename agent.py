@@ -163,6 +163,7 @@ class Agent():
     
     def build_action_queue(path, unit):
         action_queue = []
-        for step in path:
-            direction = direction_to()
-            action_queue.append(unit.move)
+        for step in range(len(path) - 1):
+            direction = direction_to(path[step], path[step + 1])
+            action_queue.append([unit.move(direction, repeat=0, n=1)])
+        return action_queue
