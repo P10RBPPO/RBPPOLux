@@ -1,3 +1,5 @@
+import heapq
+import math
 from lux.kit import obs_to_game_state, GameState
 from lux.config import EnvConfig
 from lux.utils import direction_to, my_turn_to_place_factory
@@ -94,3 +96,67 @@ class Agent():
                         if move_cost is not None and unit.power >= move_cost + unit.action_queue_cost(game_state):
                             actions[unit_id] = [unit.move(direction, repeat=0, n=1)]
         return actions
+
+    # A* search algorithm
+    # returns a path from start to goal
+    def astar_search(self, unit, start, goal, game_state):
+        directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
+        map_width, map_height = self.env_cfg.map_size, self.env_cfg.map_size
+        open_set = []
+        heapq.heappush(open_set, (0, tuple(start)))
+        came_from = {}
+        g_score = {tuple(start): 0}
+        f_score = {tuple(start): self.heuristic(start, goal)}
+
+        while open_set:
+            _, current = heapq.heappop(open_set)
+
+            if current == tuple(goal):
+                path = []
+                while current in came_from:
+                    path.append(current)
+                    current = came_from[current]
+                path.reverse()
+                return path
+
+            for direction in directions:
+                neighbor = (current[0] + direction[0], current[1] + direction[1])
+
+                # Check if neighbor is within bounds
+                if not (0 <= neighbor[0] < map_width and 0 <= neighbor[1] < map_height):
+                    #print(f"neighbor {neighbor} is out of bounds", file=sys.stderr)
+                    continue
+
+                move_cost = self.move_cost(game_state, current, direction, unit)
+                if move_cost > 999999:
+                    # Uncomment the line below for debugging
+                    # print(f"move cost {move_cost} for {unit.unit_id} at {start} searching {current} with neighbor {neighbor}", file=sys.stderr)
+                    continue  # Skip this direction if move cost is None
+
+                tentative_g_score = g_score[current] + move_cost
+
+                if neighbor not in g_score or tentative_g_score < g_score[neighbor]:
+                    came_from[neighbor] = current
+                    g_score[neighbor] = tentative_g_score
+                    f_score[neighbor] = tentative_g_score + self.heuristic(neighbor, goal)
+                    heapq.heappush(open_set, (f_score[neighbor], neighbor))
+
+        print(f"no path found for {unit.unit_id}", file=sys.stderr)
+        return None  # No path found
+
+    # Calculate the cost of moving from current_pos to target_pos
+    # This is taken from the library and modified to work with any location
+    def move_cost(self, game_state, current_pos, direction, unit):
+        board = game_state.board
+        move_deltas = np.array([[0, 0], [0, -1], [1, 0], [0, 1], [-1, 0]])
+        target_pos = current_pos + move_deltas[direction]
+        if target_pos[0] < 0 or target_pos[1] < 0 or target_pos[1] >= len(board.rubble) or target_pos[0] >= len(board.rubble[0]):
+            # print("Warning, tried to get move cost for going off the map", file=sys.stderr)
+            return 99999999
+        factory_there = board.factory_occupancy_map[target_pos[0], target_pos[1]]
+        if factory_there not in game_state.teams[unit.agent_id].factory_strains and factory_there != -1:
+            # print("Warning, tried to get move cost for going onto a opposition factory", file=sys.stderr)
+            return 99999999
+        rubble_at_target = board.rubble[target_pos[0]][target_pos[1]]
+        power_at_tile = 0 # self.get_unit_power_on_tile(target_pos, game_state.units[unit.agent_id], unit.team_id)
+        return math.floor(unit.unit_cfg.MOVE_COST + power_at_tile + unit.unit_cfg.RUBBLE_MOVEMENT_COST * rubble_at_target)
