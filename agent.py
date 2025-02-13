@@ -160,3 +160,9 @@ class Agent():
         rubble_at_target = board.rubble[target_pos[0]][target_pos[1]]
         power_at_tile = 0 # self.get_unit_power_on_tile(target_pos, game_state.units[unit.agent_id], unit.team_id)
         return math.floor(unit.unit_cfg.MOVE_COST + power_at_tile + unit.unit_cfg.RUBBLE_MOVEMENT_COST * rubble_at_target)
+    
+    def build_action_queue(path, unit):
+        action_queue = []
+        for step in path:
+            direction = direction_to()
+            action_queue.append(unit.move)
