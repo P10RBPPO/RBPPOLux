@@ -5,6 +5,8 @@ from lux.config import EnvConfig
 from lux.utils import direction_to, my_turn_to_place_factory
 import numpy as np
 import sys
+import PathfindingResult
+
 class Agent():
     def __init__(self, player: str, env_cfg: EnvConfig) -> None:
         self.player = player
@@ -98,7 +100,7 @@ class Agent():
         return actions
 
     # A* search algorithm
-    # returns a path from start to goal
+    # returns a PathfindingResult object
     def astar_search(self, unit, start, goal, game_state):
         directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
         map_width, map_height = self.env_cfg.map_size, self.env_cfg.map_size
@@ -113,24 +115,24 @@ class Agent():
 
             if current == tuple(goal):
                 path = []
+                total_move_cost = 0
                 while current in came_from:
                     path.append(current)
+                    total_move_cost += self.move_cost(game_state, came_from[current], direction_to(came_from[current], current), unit)
                     current = came_from[current]
                 path.reverse()
-                return path
+                action_queue = self.build_action_queue(path, unit)
+                return PathfindingResult(path, total_move_cost, action_queue)
 
             for direction in directions:
                 neighbor = (current[0] + direction[0], current[1] + direction[1])
 
                 # Check if neighbor is within bounds
                 if not (0 <= neighbor[0] < map_width and 0 <= neighbor[1] < map_height):
-                    #print(f"neighbor {neighbor} is out of bounds", file=sys.stderr)
                     continue
 
                 move_cost = self.move_cost(game_state, current, direction, unit)
                 if move_cost > 999999:
-                    # Uncomment the line below for debugging
-                    # print(f"move cost {move_cost} for {unit.unit_id} at {start} searching {current} with neighbor {neighbor}", file=sys.stderr)
                     continue  # Skip this direction if move cost is None
 
                 tentative_g_score = g_score[current] + move_cost
