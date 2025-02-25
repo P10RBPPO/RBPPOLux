@@ -98,3 +98,20 @@ class Agent():
                         if move_cost is not None and unit.power >= move_cost + unit.action_queue_cost(game_state):
                             actions[unit_id] = [unit.move(direction, repeat=0, n=1)]
         return actions
+
+    def merge_action_queues(self, first, second):
+        return first + second
+
+    def goto_closest_ice(self, unit, game_state, numdigs):
+        ice_tile_locations = np.argwhere(game_state.board.ice == 1)
+        ice_tile_distances = np.mean((ice_tile_locations - unit.pos) ** 2, 1)
+        closest_ice_tile = ice_tile_locations[np.argmin(ice_tile_distances)]
+        astar = PathfindingResult.astar_search(unit, unit.pos, closest_ice_tile, game_state)
+        action_queue = astar.action_queue
+        return action_queue
+
+    def return_to_factory(self, unit, factory, game_state):
+        astar = PathfindingResult.astar_search(unit, unit.pos, factory.pos, game_state)
+        action_queue = astar.action_queue
+        action_queue.append(unit.transfer(direction_to(unit.pos, factory.pos), 0, unit.cargo.ice, repeat=0))
+        return action_queue

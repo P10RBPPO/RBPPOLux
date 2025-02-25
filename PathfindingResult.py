@@ -12,7 +12,13 @@ class PathfindingResult:
         self.move_cost = move_cost
         self.action_queue = action_queue
 
-        # A* search algorithm
+    # heuristic for A* search
+    # we only care initially if we get closer to the target
+    # move cost comes later
+    def heuristic(self, a, b):
+            return abs(a[0] - b[0]) + abs(a[1] - b[1])
+    
+    # A* search algorithm
     # returns a PathfindingResult object
     def astar_search(self, unit, start, goal, game_state):
         directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
