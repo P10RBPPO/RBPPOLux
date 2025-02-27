@@ -21,14 +21,14 @@ class PathfindingResult:
     # A* search algorithm
     # returns a PathfindingResult object
     @staticmethod
-    def astar_search(self, unit, start, goal, game_state):
+    def astar_search(unit, start, goal, game_state):
         directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
-        map_width, map_height = self.env_cfg.map_size, self.env_cfg.map_size
+        map_width, map_height = game_state.board.width, game_state.board.height
         open_set = []
         heapq.heappush(open_set, (0, tuple(start)))
         came_from = {}
         g_score = {tuple(start): 0}
-        f_score = {tuple(start): self.heuristic(start, goal)}
+        f_score = {tuple(start): PathfindingResult().heuristic(start, goal)}
 
         while open_set:
             _, current = heapq.heappop(open_set)
@@ -38,10 +38,10 @@ class PathfindingResult:
                 total_move_cost = 0
                 while current in came_from:
                     path.append(current)
-                    total_move_cost += self.move_cost(game_state, came_from[current], direction_to(came_from[current], current), unit)
+                    total_move_cost += PathfindingResult().move_cost(game_state, came_from[current], direction_to(came_from[current], current), unit)
                     current = came_from[current]
                 path.reverse()
-                action_queue = self.build_action_queue(path, unit)
+                action_queue = PathfindingResult().build_action_queue(path, unit)
                 return PathfindingResult(path, total_move_cost, action_queue)
 
             for direction in directions:
@@ -51,7 +51,7 @@ class PathfindingResult:
                 if not (0 <= neighbor[0] < map_width and 0 <= neighbor[1] < map_height):
                     continue
 
-                move_cost = self.move_cost(game_state, current, direction, unit)
+                move_cost = PathfindingResult().move_cost(game_state, current, direction, unit)
                 if move_cost > 999999:
                     continue  # Skip this direction if move cost is None
 
@@ -60,7 +60,7 @@ class PathfindingResult:
                 if neighbor not in g_score or tentative_g_score < g_score[neighbor]:
                     came_from[neighbor] = current
                     g_score[neighbor] = tentative_g_score
-                    f_score[neighbor] = tentative_g_score + self.heuristic(neighbor, goal)
+                    f_score[neighbor] = tentative_g_score + PathfindingResult().heuristic(neighbor, goal)
                     heapq.heappush(open_set, (f_score[neighbor], neighbor))
 
         print(f"no path found for {unit.unit_id}", file=sys.stderr)
