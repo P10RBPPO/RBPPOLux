@@ -76,8 +76,9 @@ class RobotController:
         for unit_id, action_list in actions.items():
             if action_list:
                 action = action_list[0]
-                if action['type'] == 'move':
-                    target_pos = (self.units[unit_id].pos[0] + action['direction'][0], self.units[unit_id].pos[1] + action['direction'][1])
+                if isinstance(action, np.ndarray) and action[0] == 0:  # Check if it's a move action
+                    direction = action[1]
+                    target_pos = (self.units[unit_id].pos[0] + direction[0], self.units[unit_id].pos[1] + direction[1])
                     if target_pos not in target_positions:
                         target_positions[target_pos] = []
                     target_positions[target_pos].append(unit_id)
