@@ -14,6 +14,9 @@ class FactoryController:
         self.factory_tiles = []
         self.factory_units = []
 
+    def update_game_state(self, new_game_state):
+        self.game_state = new_game_state
+
     def place_factory(self, player, step, env_cfg, obs):
         game_state = obs_to_game_state(step, env_cfg, obs)
         water_left = game_state.teams[player].water
