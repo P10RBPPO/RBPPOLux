@@ -65,19 +65,18 @@ class RobotController:
                     if unit.power >= unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state):
                         actions[unit_id] = [unit.dig(repeat=0, n=1)]
                 else:
-                    direction = direction_to(unit.pos, closest_ice_tile)
-                    move_cost = unit.move_cost(self.game_state, direction)
-                    if move_cost is not None and unit.power >= move_cost + unit.action_queue_cost(self.game_state):
-                        actions[unit_id] = [unit.move(direction, repeat=0, n=1)]
+                    pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, closest_ice_tile, self.game_state)
+                    if pathfinding_result:
+                        actions[unit_id] = pathfinding_result.action_queue
             elif unit.cargo.ice >= 40:
                 direction = direction_to(unit.pos, closest_factory_tile)
                 if adjacent_to_factory:
                     if unit.power >= unit.action_queue_cost(self.game_state):
                         actions[unit_id] = [unit.transfer(direction, 0, unit.cargo.ice, repeat=0)]
                 else:
-                    move_cost = unit.move_cost(self.game_state, direction)
-                    if move_cost is not None and unit.power >= move_cost + unit.action_queue_cost(self.game_state):
-                        actions[unit_id] = [unit.move(direction, repeat=0, n=1)]
+                    pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, closest_factory_tile, self.game_state)
+                    if pathfinding_result:
+                        actions[unit_id] = pathfinding_result.action_queue
     
     def resolve_conflicts(self, actions):
         direction_map = {
