@@ -7,6 +7,7 @@ import numpy as np
 import sys
 import PathfindingResult
 import Controllers.RobotController as RobotController
+import Controllers.FactoryController as FactoryController
 
 class Agent():
     def __init__(self, player: str, env_cfg: EnvConfig) -> None:
@@ -15,52 +16,25 @@ class Agent():
         np.random.seed(0)
         self.env_cfg: EnvConfig = env_cfg
         self.robot_controller = RobotController.RobotController(None)  # Initialize with None game state
+        self.factory_controller = FactoryController.FactoryController(None)  # Initialize with None game state
 
     def early_setup(self, step: int, obs, remainingOverageTime: int = 60):
         if step == 0:
             # bid 0 to not waste resources bidding and declare as the default faction
             return dict(faction="AlphaStrike", bid=0)
         else:
-            game_state = obs_to_game_state(step, self.env_cfg, obs)
-            # factory placement period
-
-            # how much water and metal you have in your starting pool to give to new factories
-            water_left = game_state.teams[self.player].water
-            metal_left = game_state.teams[self.player].metal
-
-            # how many factories you have left to place
-            factories_to_place = game_state.teams[self.player].factories_to_place
-            # whether it is your turn to place a factory
-            my_turn_to_place = my_turn_to_place_factory(game_state.teams[self.player].place_first, step)
-            if factories_to_place > 0 and my_turn_to_place:
-                # we will spawn our factory in a random location with 150 metal and water if it is our turn to place
-                potential_spawns = np.array(list(zip(*np.where(obs["board"]["valid_spawns_mask"] == 1))))
-                spawn_loc = potential_spawns[np.random.randint(0, len(potential_spawns))]
-                return dict(spawn=spawn_loc, metal=150, water=150)
-            return dict()
+            return self.factory_controller.place_factory(self.player, step, self.env_cfg, obs)
 
     def act(self, step: int, obs, remainingOverageTime: int = 60):
         actions = dict()
 
         game_state = obs_to_game_state(step, self.env_cfg, obs)
         self.robot_controller.update_game_state(game_state)  # Update the RobotController with the new game_state
+        self.factory_controller.update_game_state(game_state) # Update the FactoryController with the new game_state
 
-        factories = game_state.factories[self.player]
-        game_state.teams[self.player].place_first
-        factory_tiles, factory_units = [], []
-        for unit_id, factory in factories.items():
-            if factory.power >= self.env_cfg.ROBOTS["HEAVY"].POWER_COST and \
-            factory.cargo.metal >= self.env_cfg.ROBOTS["HEAVY"].METAL_COST:
-                actions[unit_id] = factory.build_heavy()
-            if factory.water_cost(game_state) <= factory.cargo.water / 5 - 200:
-                actions[unit_id] = factory.water()
-            factory_tiles += [factory.pos]
-            factory_units += [factory]
-        factory_tiles = np.array(factory_tiles)
+        factory_actions = self.factory_controller.handle_factory_actions(self.player, self.env_cfg, game_state, actions)
 
         units = game_state.units[self.player]
-        ice_map = game_state.board.ice
-        ice_tile_locations = np.argwhere(ice_map == 1)
 
         # Add units to the RobotController
         for unit_id, unit in units.items():
@@ -68,7 +42,8 @@ class Agent():
             self.robot_controller.assign_role(unit_id, "Ice Miner")  # Assign role as Ice Miner for now
 
         # Control units using the RobotController
-        actions = self.robot_controller.control_units(actions)
+        robot_actions = self.robot_controller.control_units(actions)
+        actions = self.merge_action_queues(factory_actions, robot_actions)
 
         return actions
 
