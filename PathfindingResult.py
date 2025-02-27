@@ -20,6 +20,7 @@ class PathfindingResult:
     
     # A* search algorithm
     # returns a PathfindingResult object
+    @staticmethod
     def astar_search(self, unit, start, goal, game_state):
         directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
         map_width, map_height = self.env_cfg.map_size, self.env_cfg.map_size
