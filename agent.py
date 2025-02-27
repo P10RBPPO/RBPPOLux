@@ -47,7 +47,8 @@ class Agent():
         return actions
 
     def merge_action_queues(self, first, second):
-        return first + second
+        first.update(second)
+        return first
 
     def goto_closest_ice(self, unit, game_state, numdigs):
         ice_tile_locations = np.argwhere(game_state.board.ice == 1)
