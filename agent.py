@@ -32,7 +32,6 @@ class Agent():
         self.robot_controller.update_game_state(game_state)  # Update the RobotController with the new game_state
         self.factory_controller.update_game_state(game_state) # Update the FactoryController with the new game_state
 
-        factory_actions = self.factory_controller.handle_factory_actions(self.player, self.env_cfg, game_state, actions)
 
         units = game_state.units[self.player]
 
@@ -43,6 +42,7 @@ class Agent():
 
         # Control units using the RobotController
         robot_actions = self.robot_controller.control_units(actions)
+        factory_actions = self.factory_controller.handle_factory_actions(self.player, self.env_cfg, game_state, actions)
         actions = self.merge_action_queues(factory_actions, robot_actions)
 
         return actions

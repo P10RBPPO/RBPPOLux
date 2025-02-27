@@ -25,8 +25,7 @@ class RobotController:
         self.game_state = new_game_state
 
     def control_units(self, actions):
-        factory_tiles = self.game_state.factory_tiles
-        factory_units = self.game_state.factory_units
+        factory_tiles, factory_units = self.get_factories(self.game_state)
         ice_tile_locations = self.game_state.ice_tile_locations
 
         for unit_id, unit in self.units.items():
@@ -95,3 +94,12 @@ class RobotController:
                 resolved_actions[unit_id] = actions[unit_id]
 
         return resolved_actions
+
+    def get_factories(self, game_state):
+        factories = game_state.factories[self.player]
+        factory_tiles, factory_units = [], []
+        for unit_id, factory in factories.items():
+            factory_tiles += [factory.pos]
+            factory_units += [factory]
+        factory_tiles = np.array(factory_tiles)
+        return factory_tiles, factory_units
