@@ -8,8 +8,9 @@ import sys
 import PathfindingResult
 
 class RobotController:
-    def __init__(self, game_state):
+    def __init__(self, game_state, player):
         self.game_state = game_state
+        self.player = player
         self.units = {}
         self.unit_types = {}
         self.unit_roles = {}
@@ -23,6 +24,7 @@ class RobotController:
     
     def update_game_state(self, new_game_state):
         self.game_state = new_game_state
+    
 
     def control_units(self, actions):
         factory_tiles, factory_units = self.get_factories(self.game_state)

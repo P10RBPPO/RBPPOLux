@@ -15,7 +15,7 @@ class Agent():
         self.opp_player = "player_1" if self.player == "player_0" else "player_0"
         np.random.seed(0)
         self.env_cfg: EnvConfig = env_cfg
-        self.robot_controller = RobotController.RobotController(None)  # Initialize with None game state
+        self.robot_controller = RobotController.RobotController(None, player)  # Initialize with None game state
         self.factory_controller = FactoryController.FactoryController(None)  # Initialize with None game state
 
     def early_setup(self, step: int, obs, remainingOverageTime: int = 60):
@@ -31,7 +31,6 @@ class Agent():
         game_state = obs_to_game_state(step, self.env_cfg, obs)
         self.robot_controller.update_game_state(game_state)  # Update the RobotController with the new game_state
         self.factory_controller.update_game_state(game_state) # Update the FactoryController with the new game_state
-
 
         units = game_state.units[self.player]
 
