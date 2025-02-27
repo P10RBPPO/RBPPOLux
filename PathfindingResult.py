@@ -23,7 +23,7 @@ class PathfindingResult:
     @staticmethod
     def astar_search(unit, start, goal, game_state):
         directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
-        map_width, map_height = game_state.board.width, game_state.board.height
+        map_width, map_height = 48, 48
         open_set = []
         heapq.heappush(open_set, (0, tuple(start)))
         came_from = {}
