@@ -33,6 +33,7 @@ class RobotController:
         for unit_id, unit in new_game_state.units[self.player].items():
             if unit_id not in self.units:
                 self.add_unit(unit_id, unit, unit.unit_type)
+                self.assign_role(unit_id, "Ice Miner")
     
 
     def control_units(self, actions):
