@@ -39,7 +39,7 @@ class PathfindingResult:
                 total_move_cost = 0
                 while current in came_from:
                     path.append(current)
-                    total_move_cost += PathfindingResult.move_cost(game_state, came_from[current], direction_to(came_from[current], current), unit)
+                    total_move_cost += PathfindingResult.move_cost(game_state, np.array(came_from[current]), direction_to(np.array(came_from[current]), np.array(current)), unit)
                     current = came_from[current]
                 path.reverse()
                 action_queue = PathfindingResult.build_action_queue(path, unit)
@@ -52,7 +52,7 @@ class PathfindingResult:
                 if not (0 <= neighbor[0] < map_width and 0 <= neighbor[1] < map_height):
                     continue
 
-                move_cost = PathfindingResult.move_cost(game_state, current, direction, unit)
+                move_cost = PathfindingResult.move_cost(game_state, np.array(current), direction, unit)
                 if move_cost > 999999:
                     continue  # Skip this direction if move cost is None
 
@@ -87,6 +87,6 @@ class PathfindingResult:
     def build_action_queue(path, unit):
         action_queue = []
         for step in range(len(path) - 1):
-            direction = direction_to(path[step], path[step + 1])
+            direction = direction_to(np.array(path[step]), np.array(path[step + 1]))
             action_queue.append([unit.move(direction, repeat=0, n=1)])
         return action_queue
