@@ -88,5 +88,5 @@ class PathfindingResult:
         action_queue = []
         for step in range(len(path) - 1):
             direction = direction_to(np.array(path[step]), np.array(path[step + 1]))
-            action_queue.append([unit.move(direction, repeat=0, n=1)])
+            action_queue.append(unit.move(direction, repeat=0, n=1))
         return action_queue
