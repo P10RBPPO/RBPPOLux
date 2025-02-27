@@ -24,6 +24,15 @@ class RobotController:
     
     def update_game_state(self, new_game_state):
         self.game_state = new_game_state
+        # Remove dead units
+        current_unit_ids = set(new_game_state.units[self.player].keys())
+        self.units = {unit_id: unit for unit_id, unit in self.units.items() if unit_id in current_unit_ids}
+        self.unit_types = {unit_id: unit_type for unit_id, unit_type in self.unit_types.items() if unit_id in current_unit_ids}
+        self.unit_roles = {unit_id: role for unit_id, role in self.unit_roles.items() if unit_id in current_unit_ids}
+        # Add new units
+        for unit_id, unit in new_game_state.units[self.player].items():
+            if unit_id not in self.units:
+                self.add_unit(unit_id, unit, unit.unit_type)
     
 
     def control_units(self, actions):

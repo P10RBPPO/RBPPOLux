@@ -16,6 +16,13 @@ class FactoryController:
 
     def update_game_state(self, new_game_state):
         self.game_state = new_game_state
+        # Remove dead factories
+        current_factory_ids = set(new_game_state.factories[self.player].keys())
+        self.factories = {factory_id: factory for factory_id, factory in self.factories.items() if factory_id in current_factory_ids}
+        # Add new factories
+        for factory_id, factory in new_game_state.factories[self.player].items():
+            if factory_id not in self.factories:
+                self.factories[factory_id] = factory
 
     def place_factory(self, player, step, env_cfg, obs):
         game_state = obs_to_game_state(step, env_cfg, obs)
