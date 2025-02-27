@@ -70,6 +70,14 @@ class RobotController:
                         actions[unit_id] = [unit.move(direction, repeat=0, n=1)]
     
     def resolve_conflicts(self, actions):
+        direction_map = {
+            0: (0, 0),   # center
+            1: (0, -1),  # up
+            2: (1, 0),   # right
+            3: (0, 1),   # down
+            4: (-1, 0)   # left
+        }
+
         target_positions = {}
         resolved_actions = {}
 
@@ -78,7 +86,8 @@ class RobotController:
                 action = action_list[0]
                 if isinstance(action, np.ndarray) and action[0] == 0:  # Check if it's a move action
                     direction = action[1]
-                    target_pos = (self.units[unit_id].pos[0] + direction[0], self.units[unit_id].pos[1] + direction[1])
+                    dx, dy = direction_map[direction]
+                    target_pos = (self.units[unit_id].pos[0] + dx, self.units[unit_id].pos[1] + dy)
                     if target_pos not in target_positions:
                         target_positions[target_pos] = []
                     target_positions[target_pos].append(unit_id)
