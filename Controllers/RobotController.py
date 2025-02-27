@@ -28,7 +28,7 @@ class RobotController:
 
     def control_units(self, actions):
         factory_tiles, factory_units = self.get_factories(self.game_state)
-        ice_tile_locations = self.game_state.ice_tile_locations
+        ice_tile_locations = self.get_ice_tile_locations(self.game_state)
 
         for unit_id, unit in self.units.items():
             role = self.unit_roles.get(unit_id, None)
@@ -105,3 +105,15 @@ class RobotController:
             factory_units += [factory]
         factory_tiles = np.array(factory_tiles)
         return factory_tiles, factory_units
+    
+    def get_ice_tile_locations(self, game_state):
+        ice_map = game_state.board.ice
+        return np.argwhere(ice_map == 1)
+
+    def get_rubble_tile_locations(self, game_state):
+        rubble_map = game_state.board.rubble
+        return np.argwhere(rubble_map == 1)
+
+    def get_ore_tile_locations(self, game_state):
+        ore_map = game_state.board.ore
+        return np.argwhere(ore_map == 1)
