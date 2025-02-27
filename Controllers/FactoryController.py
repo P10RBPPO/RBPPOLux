@@ -8,8 +8,9 @@ import sys
 import PathfindingResult
 
 class FactoryController:
-    def __init__(self, game_state):
+    def __init__(self, game_state, player):
         self.game_state = game_state
+        self.player = player
         self.factories = {}
         self.factory_tiles = []
         self.factory_units = []
