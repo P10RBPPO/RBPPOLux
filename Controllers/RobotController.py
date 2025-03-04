@@ -43,40 +43,40 @@ class RobotController:
         for unit_id, unit in self.units.items():
             role = self.unit_roles.get(unit_id, None)
             if role == "Ice Miner":
-                self.control_ice_miner(unit_id, unit, factory_tiles, factory_units, ice_tile_locations, actions)
+                self.control_ice_miner(unit_id, unit, factory_tiles, ice_tile_locations, actions)
         
         # Resolve conflicts before returning actions
         actions = self.resolve_conflicts(actions)
         return actions
 
-    def control_ice_miner(self, unit_id, unit, factory_tiles, factory_units, ice_tile_locations, actions):
-        closest_factory = None
+    def control_ice_miner(self, unit_id, unit, factory_tiles, ice_tile_locations, actions):
         adjacent_to_factory = False
         if len(factory_tiles) > 0:
             factory_distances = np.mean((factory_tiles - unit.pos) ** 2, 1)
             closest_factory_tile = factory_tiles[np.argmin(factory_distances)]
-            closest_factory = factory_units[np.argmin(factory_distances)]
             adjacent_to_factory = np.mean((closest_factory_tile - unit.pos) ** 2) == 0
 
-            if unit.cargo.ice < 40:
+            if unit.cargo.ice < 60:
                 ice_tile_distances = np.mean((ice_tile_locations - unit.pos) ** 2, 1)
                 closest_ice_tile = ice_tile_locations[np.argmin(ice_tile_distances)]
                 if np.all(closest_ice_tile == unit.pos):
                     if unit.power >= unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state):
                         actions[unit_id] = [unit.dig(repeat=0, n=1)]
                 else:
-                    pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, closest_ice_tile, self.game_state)
-                    if pathfinding_result:
-                        actions[unit_id] = pathfinding_result.action_queue
-            elif unit.cargo.ice >= 40:
+                    if len(unit.action_queue) == 0:
+                        pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, closest_ice_tile, self.game_state)
+                        if pathfinding_result:
+                            actions[unit_id] = pathfinding_result.action_queue
+            elif unit.cargo.ice >= 60:
                 direction = direction_to(unit.pos, closest_factory_tile)
                 if adjacent_to_factory:
                     if unit.power >= unit.action_queue_cost(self.game_state):
                         actions[unit_id] = [unit.transfer(direction, 0, unit.cargo.ice, repeat=0)]
                 else:
-                    pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, closest_factory_tile, self.game_state)
-                    if pathfinding_result:
-                        actions[unit_id] = pathfinding_result.action_queue
+                    if len(unit.action_queue) == 0:
+                        pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, closest_factory_tile, self.game_state)
+                        if pathfinding_result:
+                            actions[unit_id] = pathfinding_result.action_queue
     
     def resolve_conflicts(self, actions):
         direction_map = {
