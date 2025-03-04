@@ -29,10 +29,12 @@ class RobotController:
         self.units = {unit_id: unit for unit_id, unit in self.units.items() if unit_id in current_unit_ids}
         self.unit_types = {unit_id: unit_type for unit_id, unit_type in self.unit_types.items() if unit_id in current_unit_ids}
         self.unit_roles = {unit_id: role for unit_id, role in self.unit_roles.items() if unit_id in current_unit_ids}
-        # Add new units
+        # Update existing units and add new units
         for unit_id, unit in new_game_state.units[self.player].items():
-            if unit_id not in self.units:
-                self.add_unit(unit_id, unit, unit.unit_type)
+            self.units[unit_id] = unit
+            if unit_id not in self.unit_types:
+                self.unit_types[unit_id] = unit.unit_type
+            if unit_id not in self.unit_roles:
                 self.assign_role(unit_id, "Ice Miner")
     
 
@@ -63,7 +65,7 @@ class RobotController:
                     if unit.power >= unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state):
                         actions[unit_id] = [unit.dig(repeat=0, n=1)]
                 else:
-                    if len(actions[unit_id]) == 0:
+                    if len(unit.action_queue) == 0:
                         pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, closest_ice_tile, self.game_state)
                         if pathfinding_result:
                             actions[unit_id] = pathfinding_result.action_queue
@@ -73,7 +75,7 @@ class RobotController:
                     if unit.power >= unit.action_queue_cost(self.game_state):
                         actions[unit_id] = [unit.transfer(direction, 0, unit.cargo.ice, repeat=0)]
                 else:
-                    if len(actions[unit_id]) == 0:
+                    if len(unit.action_queue) == 0:
                         pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, closest_factory_tile, self.game_state)
                         if pathfinding_result:
                             actions[unit_id] = pathfinding_result.action_queue
