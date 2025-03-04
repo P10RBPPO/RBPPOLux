@@ -63,7 +63,7 @@ class RobotController:
                     if unit.power >= unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state):
                         actions[unit_id] = [unit.dig(repeat=0, n=1)]
                 else:
-                    if len(unit.action_queue) == 0:
+                    if len(actions[unit_id]) == 0:
                         pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, closest_ice_tile, self.game_state)
                         if pathfinding_result:
                             actions[unit_id] = pathfinding_result.action_queue
@@ -73,7 +73,7 @@ class RobotController:
                     if unit.power >= unit.action_queue_cost(self.game_state):
                         actions[unit_id] = [unit.transfer(direction, 0, unit.cargo.ice, repeat=0)]
                 else:
-                    if len(unit.action_queue) == 0:
+                    if len(actions[unit_id]) == 0:
                         pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, closest_factory_tile, self.game_state)
                         if pathfinding_result:
                             actions[unit_id] = pathfinding_result.action_queue
