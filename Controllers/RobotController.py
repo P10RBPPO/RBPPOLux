@@ -68,17 +68,32 @@ class RobotController:
                     if len(unit.action_queue) == 0:
                         pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, closest_ice_tile, self.game_state)
                         if pathfinding_result:
-                            actions[unit_id] = pathfinding_result.action_queue
+                            if unit.power >= pathfinding_result.move_cost:
+                                actions[unit_id] = pathfinding_result.action_queue
+                            else:
+                                remainder = pathfinding_result.move_cost - unit.power
+                                actions[unit_id] = [unit.recharge(x=remainder)]
             elif unit.cargo.ice >= 60:
                 direction = direction_to(unit.pos, closest_factory_tile)
                 if adjacent_to_factory:
                     if unit.power >= unit.action_queue_cost(self.game_state):
                         actions[unit_id] = [unit.transfer(direction, 0, unit.cargo.ice, repeat=0)]
+                        factory_power = self.game_state.factories[self.player][closest_factory_tile].power
+                        power_to_pickup = int(factory_power * 0.15)
+                        actions[unit_id].append(unit.pickup(4, power_to_pickup, repeat=0, n=1))
+                    else:
+                        factory_power = self.game_state.factories[self.player][closest_factory_tile].power
+                        power_to_pickup = int(factory_power * 0.15)
+                        actions[unit_id] = [unit.pickup(4, power_to_pickup, repeat=0, n=1)]
                 else:
                     if len(unit.action_queue) == 0:
                         pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, closest_factory_tile, self.game_state)
                         if pathfinding_result:
-                            actions[unit_id] = pathfinding_result.action_queue
+                            if unit.power >= pathfinding_result.move_cost:
+                                actions[unit_id] = pathfinding_result.action_queue
+                            else:
+                                remainder = pathfinding_result.move_cost - unit.power
+                                actions[unit_id] = [unit.recharge(x=remainder)]
     
     def resolve_conflicts(self, actions):
         direction_map = {
