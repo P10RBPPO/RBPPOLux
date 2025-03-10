@@ -14,6 +14,7 @@ class FactoryController:
         self.factories = {}
         self.factory_tiles = []
         self.factory_units = []
+        self.watering_state = {}  # Dictionary to track watering state of each factory
 
     def update_game_state(self, new_game_state):
         self.game_state = new_game_state
@@ -27,14 +28,10 @@ class FactoryController:
     def place_factory(self, player, step, env_cfg, obs):
         game_state = obs_to_game_state(step, env_cfg, obs)
         self.game_state = game_state
-        #water_left = game_state.teams[player].water
-        #metal_left = game_state.teams[player].metal
         factories_to_place = game_state.teams[player].factories_to_place
         my_turn_to_place = my_turn_to_place_factory(game_state.teams[player].place_first, step)
 
         if factories_to_place > 0 and my_turn_to_place:
-            #potential_spawns = np.array(list(zip(*np.where(obs["board"]["valid_spawns_mask"] == 1))))
-            #spawn_loc = potential_spawns[np.random.randint(0, len(potential_spawns))]
             spawn_loc = self.find_best_factory_location(obs)
             return dict(spawn=spawn_loc, metal=150, water=150)
         return dict()
@@ -46,17 +43,29 @@ class FactoryController:
             if factory.power >= env_cfg.ROBOTS["HEAVY"].POWER_COST and \
             factory.cargo.metal >= env_cfg.ROBOTS["HEAVY"].METAL_COST:
                 actions[unit_id] = factory.build_heavy()
-            if factory.water_cost(game_state) <= factory.cargo.water / 5 - 200:
+                return actions # return early to prioritize building actions before watering actions
+            
+            # Toggle watering state based on water levels
+            if unit_id not in self.watering_state:
+                self.watering_state[unit_id] = False  # Initialize watering state
+
+            if factory.cargo.water > 100:
+                self.watering_state[unit_id] = True
+            elif factory.cargo.water < 80:
+                self.watering_state[unit_id] = False
+
+            if self.watering_state[unit_id]:
                 actions[unit_id] = factory.water()
+
             factory_tiles += [factory.pos]
             factory_units += [factory]
+        
         factory_tiles = np.array(factory_tiles)
         self.factory_tiles = factory_tiles
         self.factory_units = factory_units
         return actions
     
     # Find the best location to place a factory
-    # Definition of best in this case means adjacent to ice and far from enemy factories
     def find_best_factory_location(self, obs):
         potential_spawns = np.array(list(zip(*np.where(obs["board"]["valid_spawns_mask"] == 1))))
         ice_tiles = np.array(list(zip(*np.where(obs["board"]["ice"] == 1))))
