@@ -26,14 +26,15 @@ class FactoryController:
 
     def place_factory(self, player, step, env_cfg, obs):
         game_state = obs_to_game_state(step, env_cfg, obs)
-        water_left = game_state.teams[player].water
-        metal_left = game_state.teams[player].metal
+        #water_left = game_state.teams[player].water
+        #metal_left = game_state.teams[player].metal
         factories_to_place = game_state.teams[player].factories_to_place
         my_turn_to_place = my_turn_to_place_factory(game_state.teams[player].place_first, step)
 
         if factories_to_place > 0 and my_turn_to_place:
-            potential_spawns = np.array(list(zip(*np.where(obs["board"]["valid_spawns_mask"] == 1))))
-            spawn_loc = potential_spawns[np.random.randint(0, len(potential_spawns))]
+            #potential_spawns = np.array(list(zip(*np.where(obs["board"]["valid_spawns_mask"] == 1))))
+            #spawn_loc = potential_spawns[np.random.randint(0, len(potential_spawns))]
+            spawn_loc = self.find_best_factory_location(obs)
             return dict(spawn=spawn_loc, metal=150, water=150)
         return dict()
     
@@ -52,3 +53,39 @@ class FactoryController:
         self.factory_tiles = factory_tiles
         self.factory_units = factory_units
         return actions
+    
+    # Find the best location to place a factory
+    # Definition of best in this case means adjacent to ice and far from enemy factories
+    def find_best_factory_location(self, obs):
+        potential_spawns = np.array(list(zip(*np.where(obs["board"]["valid_spawns_mask"] == 1))))
+        ice_tiles = np.array(list(zip(*np.where(obs["board"]["ice"] == 1))))
+        ore_tiles = np.array(list(zip(*np.where(obs["board"]["ore"] == 1))))
+        enemy_factories = np.array([factory.pos for factory in self.game_state.factories[self.opp_player].values()])
+
+        best_location = None
+        best_cost = float('inf')
+
+        for spawn in potential_spawns:
+            # Calculate distance to nearest ice tile
+            ice_distances = np.linalg.norm(ice_tiles - spawn, axis=1)
+            min_ice_distance = np.min(ice_distances)
+
+            # Calculate distance to nearest ore tile
+            ore_distances = np.linalg.norm(ore_tiles - spawn, axis=1)
+            min_ore_distance = np.min(ore_distances)
+
+            # Calculate distance to nearest enemy factory
+            if len(enemy_factories) > 0:
+                enemy_distances = np.linalg.norm(enemy_factories - spawn, axis=1)
+                min_enemy_distance = np.min(enemy_distances)
+            else:
+                min_enemy_distance = float('inf')
+
+            # Combine costs with adjusted weights
+            total_cost = (min_ice_distance * 0.6) + (min_ore_distance * 0.4) + (1 / (min_enemy_distance + 1) * 0.1)  # Adjust weights as needed
+
+            if total_cost < best_cost:
+                best_cost = total_cost
+                best_location = spawn
+
+        return best_location
