@@ -26,6 +26,7 @@ class FactoryController:
 
     def place_factory(self, player, step, env_cfg, obs):
         game_state = obs_to_game_state(step, env_cfg, obs)
+        self.game_state = game_state
         #water_left = game_state.teams[player].water
         #metal_left = game_state.teams[player].metal
         factories_to_place = game_state.teams[player].factories_to_place
@@ -60,7 +61,13 @@ class FactoryController:
         potential_spawns = np.array(list(zip(*np.where(obs["board"]["valid_spawns_mask"] == 1))))
         ice_tiles = np.array(list(zip(*np.where(obs["board"]["ice"] == 1))))
         ore_tiles = np.array(list(zip(*np.where(obs["board"]["ore"] == 1))))
-        enemy_factories = np.array([factory.pos for factory in self.game_state.factories[self.opp_player].values()])
+        
+        # Get enemy factories by excluding self.player's factories
+        enemy_factories = []
+        for player, factories in self.game_state.factories.items():
+            if player != self.player:
+                enemy_factories.extend([factory.pos for factory in factories.values()])
+        enemy_factories = np.array(enemy_factories)
 
         best_location = None
         best_cost = float('inf')
