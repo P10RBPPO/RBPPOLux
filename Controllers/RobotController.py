@@ -104,6 +104,9 @@ class RobotController:
         target_positions = {}
         resolved_actions = {}
 
+        # Track current positions of all robots
+        current_positions = {unit_id: tuple(unit.pos) for unit_id, unit in self.units.items()}
+
         for unit_id, action_list in actions.items():
             if action_list:
                 action = action_list[0]
@@ -116,7 +119,7 @@ class RobotController:
                     target_positions[target_pos].append(unit_id)
 
         for target_pos, unit_ids in target_positions.items():
-            if len(unit_ids) > 1:
+            if len(unit_ids) > 1 or target_pos in current_positions.values():
                 unit_ids.sort(key=lambda uid: (self.unit_types[uid] != 'HEAVY', int(uid.split('_')[1])))
                 resolved_actions[unit_ids[0]] = actions[unit_ids[0]]
                 for uid in unit_ids[1:]:
