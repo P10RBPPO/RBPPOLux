@@ -53,7 +53,8 @@ class PathfindingResult:
                     continue
 
                 move_cost = PathfindingResult.move_cost(game_state, np.array(current), direction, unit)
-                if move_cost > 999999:
+                if move_cost > 99999:
+                    #print(f"move cost is too high for {unit.unit_id} {move_cost} {direction}", file=sys.stderr)
                     continue  # Skip this direction if move cost is None
 
                 tentative_g_score = g_score[current] + move_cost
@@ -75,10 +76,10 @@ class PathfindingResult:
         move_deltas = np.array([[0, 0], [0, -1], [1, 0], [0, 1], [-1, 0]])
         target_pos = current_pos + move_deltas[direction]
         if target_pos[0] < 0 or target_pos[1] < 0 or target_pos[1] >= len(board.rubble) or target_pos[0] >= len(board.rubble[0]):
-            return 99999999
+            return 999999
         factory_there = board.factory_occupancy_map[target_pos[0], target_pos[1]]
         if factory_there not in game_state.teams[unit.agent_id].factory_strains and factory_there != -1:
-            return 99999999
+            return 999999
         rubble_at_target = board.rubble[target_pos[0]][target_pos[1]]
         power_at_tile = 0
         return math.floor(unit.unit_cfg.MOVE_COST + power_at_tile + unit.unit_cfg.RUBBLE_MOVEMENT_COST * rubble_at_target)

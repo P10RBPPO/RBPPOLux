@@ -124,6 +124,7 @@ class RobotController:
                 resolved_actions[unit_ids[0]] = actions[unit_ids[0]]
                 for uid in unit_ids[1:]:
                     resolved_actions[uid] = []  # Cancel the move action by doing nothing
+                    print(f"Conflict resolved: {uid} cancelled move action", file=sys.stderr)
             else:
                 resolved_actions[unit_ids[0]] = actions[unit_ids[0]]
 
