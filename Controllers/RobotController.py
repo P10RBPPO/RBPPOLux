@@ -68,7 +68,7 @@ class RobotController:
                     if len(unit.action_queue) == 0:
                         pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, closest_ice_tile, self.game_state)
                         if pathfinding_result:
-                            if unit.power >= pathfinding_result.total_move_cost:
+                            if unit.power >= pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state):
                                 actions[unit_id] = pathfinding_result.action_queue
                             else:
                                 actions[unit_id] = [unit.recharge(x=pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state))]
@@ -86,7 +86,7 @@ class RobotController:
                     if len(unit.action_queue) == 0:
                         pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, closest_factory_tile, self.game_state)
                         if pathfinding_result:
-                            if unit.power >= pathfinding_result.total_move_cost:
+                            if unit.power >= pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state):
                                 actions[unit_id] = pathfinding_result.action_queue
                             else:
                                 actions[unit_id] = [unit.recharge(x=pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state))]
