@@ -1,6 +1,9 @@
 import torch
+import numpy as np
 
+from torch import nn
 from torch.distributions import MultivariateNormal
+from torch.optim import Adam
 from network import FeedForwardNN
 
 class PPO:
@@ -17,6 +20,10 @@ class PPO:
         self.actor = FeedForwardNN(self.obs_dim, self.act_dim)
         self.critic = FeedForwardNN(self.obs_dim, 1)
         
+        # Init Optimizer
+        self.actor_optim = Adam(self.actor.parameters(), lr=self.lr)
+        self.critic_optim = Adam(self.critic.parameters(), lr=self.lr)
+        
         # Create the covariance matrix for get_action - fill_value is stdev value
         self.cov_var = torch.full(size=(self.act_dim,), fill_value=0.5)
         self.cov_mat = torch.diag(self.cov_var)
@@ -25,13 +32,76 @@ class PPO:
         #  Default values for now
         self.timesteps_per_batch = 4800         # Timesteps per batch
         self.max_timesteps_per_episode = 1600   # Timesteps per episode    
-        self.gamma = 0.95
+        
+        self.n_updates_per_iteration = 5        # Epoch count
+        self.clip = 0.2                         # Recommended clip threshold for PPO in PPO paper
+        self.gamma = 0.95                       # Discount value
+        self.lr = 0.005                         # Learning rate
     
     def learn(self, total_timesteps):
         t_so_far = 0 # Timestep counter
         
         while t_so_far < total_timesteps:
             batch_obs, batch_acts, batch_log_probs, batch_rtgs, batch_lens = self.rollout()
+            
+            # Calculate collected timesteps for this batch
+            t_so_far += np.sum(batch_lens)
+            
+            # Calculate V_{phi, k} and pi_theta (a_t | s_t)
+            V, curr_log_probs = self.evaluate(batch_obs, batch_acts)
+            
+            # Calc advantage
+            # Detach to reuse advantage without gradient
+            A_k = batch_rtgs - V.detach()
+            
+            # Normalize advantages
+            A_k = (A_k - A_k.mean()) / (A_k.std() + 1e-10)
+            
+            for _ in range(self.n_updates_per_iteration):
+                # Calculate pi_theta(a_t | s_t)
+                _, curr_log_probs = self.evaluate(batch_obs, batch_acts)
+
+                # Calculate ratios
+                ratios = torch.exp(curr_log_probs - batch_log_probs)
+                
+                # Calculate surrogate losses
+                surr1 = ratios * A_k
+                surr2 = torch.clamp(ratios, 1 - self.clip, 1 + self.clip) * A_k
+                
+                # Calculate actor loss
+                # Negative value because we want to maximize actor loss for SGD
+                # Adam optimizer minimizes overall loss
+                # Minimizing negative loss maximizes performance function
+                # Mean generates single loss as float
+                actor_loss = (-torch.min(surr1, surr2)).mean()
+                
+                # MSE loss for critic network
+                critic_loss = nn.MSELoss()(V, batch_rtgs)
+                
+                # Calculate gradients and perform backward propagation for actor network
+                self.actor_optim.zero_grad()
+                actor_loss.backward(retain_graph=True) # Retain to avoid double-freeing buffers
+                self.actor_optim.step()
+                
+                # Calculate gradients and perform backward propagation for critic network
+                self.critic_optim.zero_grad()
+                critic_loss.backward()
+                self.critic_optim.step()
+                
+                
+    def evaluate(self,batch_obs, batch_acts):
+        # Query critic network for a value V for each obs in batch_obs
+        # Squeeze tensors into a single array instead of multiple arrays in an array
+        # batch_obs has the shape (timesteps_per_batch, obs_dim), and we only want timesteps_per_batch, therefore we squeeze
+        V = self.critic(batch_obs).squeeze() 
+        
+        # Calculate log_prob of batch actions using most recent actor network
+        mean = self.actor(batch_obs)
+        dist = MultivariateNormal(mean, self.cov_mat)
+        log_probs = dist.log_prob(batch_acts)
+        
+        # Return predicted V values and log_probs
+        return V, log_probs
     
     def rollout(self):
         # Batch data
