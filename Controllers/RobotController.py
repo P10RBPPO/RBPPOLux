@@ -119,7 +119,7 @@ class RobotController:
                     target_positions[target_pos].append(unit_id)
 
         for target_pos, unit_ids in target_positions.items():
-            if len(unit_ids) > 1 or target_pos in current_positions.values():
+            if len(unit_ids) >= 1 or target_pos in current_positions.values():
                 unit_ids.sort(key=lambda uid: (self.unit_types[uid] != 'HEAVY', int(uid.split('_')[1])))
                 resolved_actions[unit_ids[0]] = actions[unit_ids[0]]
                 for uid in unit_ids[1:]:
