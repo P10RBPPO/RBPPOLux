@@ -47,8 +47,8 @@ class PPO:
             # Calculate collected timesteps for this batch
             t_so_far += np.sum(batch_lens)
             
-            # Calculate V_{phi, k} and pi_theta (a_t | s_t)
-            V, curr_log_probs = self.evaluate(batch_obs, batch_acts)
+            # Calculate advantage at k-th iteration
+            V, _ = self.evaluate(batch_obs, batch_acts)
             
             # Calc advantage
             # Detach to reuse advantage without gradient
@@ -58,8 +58,8 @@ class PPO:
             A_k = (A_k - A_k.mean()) / (A_k.std() + 1e-10)
             
             for _ in range(self.n_updates_per_iteration):
-                # Calculate pi_theta(a_t | s_t)
-                _, curr_log_probs = self.evaluate(batch_obs, batch_acts)
+                # Calculate V_phi and pi_theta(a_t | s_t)
+                V, curr_log_probs = self.evaluate(batch_obs, batch_acts)
 
                 # Calculate ratios
                 ratios = torch.exp(curr_log_probs - batch_log_probs)
@@ -80,7 +80,7 @@ class PPO:
                 
                 # Calculate gradients and perform backward propagation for actor network
                 self.actor_optim.zero_grad()
-                actor_loss.backward(retain_graph=True) # Retain to avoid double-freeing buffers
+                actor_loss.backward(retain_graph=True) # retain_graph=True
                 self.actor_optim.step()
                 
                 # Calculate gradients and perform backward propagation for critic network
@@ -119,7 +119,7 @@ class PPO:
             # Rewards this ep
             ep_rews = []
             
-            obs = self.env.reset()
+            obs, _ = self.env.reset()
             done = False
             
             for ep_t in range(self.max_timesteps_per_episode):
@@ -130,7 +130,7 @@ class PPO:
                 batch_obs.append(obs)
                 
                 action, log_prob = self.get_action(obs)
-                obs, rew, done, _ = self.env.step(action)
+                obs, rew, done, _, _ = self.env.step(action)
                 
                 # Collect reward, action and log prob
                 ep_rews.append(rew)
@@ -145,7 +145,7 @@ class PPO:
             batch_rews.append(ep_rews)
             
         # Reshape data as tensors before returning
-        batch_obs = torch.tensor(batch_obs, dtype=torch.float)
+        batch_obs = torch.tensor(batch_obs, dtype=torch.float) # debugger warns this is slow
         batch_acts = torch.tensor(batch_acts, dtype=torch.float)
         batch_log_probs = torch.tensor(batch_log_probs, dtype=torch.float)
         
