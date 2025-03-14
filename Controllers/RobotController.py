@@ -119,12 +119,17 @@ class RobotController:
                     target_positions[target_pos].append(unit_id)
 
         for target_pos, unit_ids in target_positions.items():
-            if len(unit_ids) >= 1 or target_pos in current_positions.values():
+            target_in_current_positions = target_pos in current_positions.values()
+            if len(unit_ids) > 1 or target_in_current_positions:
                 unit_ids.sort(key=lambda uid: (self.unit_types[uid] != 'HEAVY', int(uid.split('_')[1])))
-                resolved_actions[unit_ids[0]] = actions[unit_ids[0]]
+                if target_in_current_positions:
+                    resolved_actions[unit_ids[0]] = []  # Cancel the move action
+                    print(f"Conflict resolved: {unit_ids[0]} cancelled move action due to occupied position {target_pos}", file=sys.stderr)
+                else:
+                    resolved_actions[unit_ids[0]] = actions[unit_ids[0]]
                 for uid in unit_ids[1:]:
                     resolved_actions[uid] = []  # Cancel the move action by doing nothing
-                    print(f"Conflict resolved: {uid} cancelled move action", file=sys.stderr)
+                    print(f"Conflict resolved: {uid} cancelled move action due to conflict at {target_pos}", file=sys.stderr)
             else:
                 resolved_actions[unit_ids[0]] = actions[unit_ids[0]]
 
