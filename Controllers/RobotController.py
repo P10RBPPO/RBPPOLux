@@ -15,13 +15,24 @@ class RobotController:
         self.unit_types = {}
         self.unit_roles = {}
         self.claimed_ice_tiles = {}  # Tracks which ice tiles are claimed by which robot
+        self.robot_to_factory = {}  # Tracks which factory each robot is assigned to
 
     def add_unit(self, unit_id, unit, unit_type):
         self.units[unit_id] = unit
         self.unit_types[unit_id] = unit_type
 
+        # Automatically assign the robot to the closest factory
+        factory_tiles, _ = self.get_factories(self.game_state)
+        if len(factory_tiles) > 0:
+            factory_distances = np.linalg.norm(factory_tiles - unit.pos, axis=1)
+            closest_factory_tile = factory_tiles[np.argmin(factory_distances)]
+            self.assign_factory(unit_id, closest_factory_tile)
+
     def assign_role(self, unit_id, role):
         self.unit_roles[unit_id] = role
+    
+    def assign_factory(self, unit_id, factory_pos):
+        self.robot_to_factory[unit_id] = factory_pos
     
     def update_game_state(self, new_game_state):
         self.game_state = new_game_state
@@ -53,75 +64,81 @@ class RobotController:
         return actions
 
     def control_ice_miner(self, unit_id, unit, factory_tiles, ice_tile_locations, actions):
-        adjacent_to_factory = False
-        if len(factory_tiles) > 0:
-            factory_distances = np.mean((factory_tiles - unit.pos) ** 2, 1)
+        # Get the assigned factory for this robot
+        assigned_factory = self.robot_to_factory.get(unit_id, None)
+
+        # If no factory is assigned, assign the closest factory
+        if assigned_factory is None:
+            factory_distances = np.linalg.norm(factory_tiles - unit.pos, axis=1)
             closest_factory_tile = factory_tiles[np.argmin(factory_distances)]
-            adjacent_to_factory = np.mean((closest_factory_tile - unit.pos) ** 2) == 0
+            self.assign_factory(unit_id, closest_factory_tile)
+            assigned_factory = closest_factory_tile
 
-            # If the robot is carrying ice, return to the factory
-            if unit.cargo.ice >= 60:
-                direction = direction_to(unit.pos, closest_factory_tile)
-                if adjacent_to_factory:
-                    # Unclaim the ice tile when returning to the factory
-                    for tile, claimant in list(self.claimed_ice_tiles.items()):
-                        if claimant == unit_id:
-                            del self.claimed_ice_tiles[tile]
+        adjacent_to_factory = np.array_equal(unit.pos, assigned_factory)
 
-                    factory_power = self.get_closest_factory_unit(unit, self.game_state).power
-                    power_to_pickup = int(factory_power * 0.15)
-                    if unit.power >= unit.action_queue_cost(self.game_state):
-                        actions[unit_id] = [unit.transfer(direction, 0, unit.cargo.ice, repeat=0)]
-                        actions[unit_id].append(unit.pickup(4, power_to_pickup, repeat=0, n=1))
-                    else:
-                        actions[unit_id] = [unit.pickup(4, power_to_pickup, repeat=0, n=1)]
-                else:
-                    if len(unit.action_queue) == 0:
-                        pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, closest_factory_tile, self.game_state)
-                        if pathfinding_result:
-                            if unit.power >= pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state):
-                                actions[unit_id] = pathfinding_result.action_queue
-                            else:
-                                actions[unit_id] = [unit.recharge(x=pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state))]
-            # If the robot is not carrying ice, go to the closest unclaimed ice tile
-            elif unit.cargo.ice < 60:
-                # Check if the robot has already claimed a tile
-                claimed_tile = None
-                for tile, claimant in self.claimed_ice_tiles.items():
+        # If the robot is carrying ice, return to the assigned factory
+        if unit.cargo.ice >= 60:
+            direction = direction_to(unit.pos, assigned_factory)
+            if adjacent_to_factory:
+                # Unclaim the ice tile when returning to the factory
+                for tile, claimant in list(self.claimed_ice_tiles.items()):
                     if claimant == unit_id:
-                        claimed_tile = np.array(tile)
-                        break
+                        del self.claimed_ice_tiles[tile]
 
-                if claimed_tile is not None:
-                    # If the robot has already claimed a tile, continue to that tile
-                    closest_ice_tile = claimed_tile
+                factory_power = self.get_closest_factory_unit(unit, self.game_state).power
+                power_to_pickup = int(factory_power * 0.15)
+                if unit.power >= unit.action_queue_cost(self.game_state):
+                    actions[unit_id] = [unit.transfer(direction, 0, unit.cargo.ice, repeat=0)]
+                    actions[unit_id].append(unit.pickup(4, power_to_pickup, repeat=0, n=1))
                 else:
-                    # Find the closest unclaimed ice tile
-                    unclaimed_ice_tiles = [tile for tile in ice_tile_locations if tuple(tile) not in self.claimed_ice_tiles]
-                    if len(unclaimed_ice_tiles) > 0:
-                        # Prioritize tiles based on distance and robot ID
-                        unclaimed_ice_tiles = sorted(unclaimed_ice_tiles, key=lambda tile: (
-                            np.linalg.norm(tile - unit.pos),  # Distance to the tile
-                            int(unit_id.split('_')[1])       # Robot ID as a tiebreaker
-                        ))
-                        closest_ice_tile = unclaimed_ice_tiles[0]
+                    actions[unit_id] = [unit.pickup(4, power_to_pickup, repeat=0, n=1)]
+            else:
+                if len(unit.action_queue) == 0:
+                    pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, assigned_factory, self.game_state)
+                    if pathfinding_result:
+                        if unit.power >= pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state):
+                            actions[unit_id] = pathfinding_result.action_queue
+                        else:
+                            actions[unit_id] = [unit.recharge(x=pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state))]
+        # If the robot is not carrying ice, go to the closest unclaimed ice tile
+        elif unit.cargo.ice < 60:
+            # Check if the robot has already claimed a tile
+            claimed_tile = None
+            for tile, claimant in self.claimed_ice_tiles.items():
+                if claimant == unit_id:
+                    claimed_tile = np.array(tile)
+                    break
 
-                        # Claim the ice tile for this robot
-                        self.claimed_ice_tiles[tuple(closest_ice_tile)] = unit_id
+            if claimed_tile is not None:
+                # If the robot has already claimed a tile, continue to that tile
+                closest_ice_tile = claimed_tile
+            else:
+                # Find the closest unclaimed ice tile
+                unclaimed_ice_tiles = [tile for tile in ice_tile_locations if tuple(tile) not in self.claimed_ice_tiles]
+                if len(unclaimed_ice_tiles) > 0:
+                    # Prioritize tiles based on distance and robot ID
+                    unclaimed_ice_tiles = sorted(unclaimed_ice_tiles, key=lambda tile: (
+                        np.linalg.norm(tile - unit.pos),  # Distance to the tile
+                        int(unit_id.split('_')[1])       # Robot ID as a tiebreaker
+                    ))
+                    closest_ice_tile = unclaimed_ice_tiles[0]
 
-                if np.all(closest_ice_tile == unit.pos):  # If the robot is already on the ice tile
-                    if unit.power >= unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state):
-                        actions[unit_id] = [unit.dig(repeat=0, n=1)]  # Perform the digging action
-                    else:
-                        actions[unit_id] = [unit.recharge(x=unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state))]
+                    # Claim the ice tile for this robot
+                    self.claimed_ice_tiles[tuple(closest_ice_tile)] = unit_id
+
+            if np.all(closest_ice_tile == unit.pos):  # If the robot is already on the ice tile
+                if unit.power >= unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state):
+                    actions[unit_id] = [unit.dig(repeat=0, n=1)]  # Perform the digging action
                 else:
-                    if len(unit.action_queue) == 0:
-                        pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, closest_ice_tile, self.game_state)
-                        if pathfinding_result:
-                            if unit.power >= pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state):
-                                actions[unit_id] = pathfinding_result.action_queue
-                            else:
-                                actions[unit_id] = [unit.recharge(x=pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state))]
+                    actions[unit_id] = [unit.recharge(x=unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state))]
+            else:
+                if len(unit.action_queue) == 0:
+                    pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, closest_ice_tile, self.game_state)
+                    if pathfinding_result:
+                        if unit.power >= pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state):
+                            actions[unit_id] = pathfinding_result.action_queue
+                        else:
+                            actions[unit_id] = [unit.recharge(x=pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state))]
 
     
     def resolve_conflicts(self, actions):
