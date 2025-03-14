@@ -35,14 +35,18 @@ class PathfindingResult:
             _, current = heapq.heappop(open_set)
 
             if current == tuple(goal):
-                path = []
+                path = [current]  # Start with the goal
                 total_move_cost = 0
                 while current in came_from:
-                    path.append(current)
-                    total_move_cost += PathfindingResult.move_cost(game_state, np.array(came_from[current]), direction_to(np.array(came_from[current]), np.array(current)), unit)
-                    current = came_from[current]
-                path.reverse()
+                    previous = came_from[current]
+                    path.append(previous)
+                    total_move_cost += PathfindingResult.move_cost(
+                        game_state, np.array(previous), direction_to(np.array(previous), np.array(current)), unit
+                    )
+                    current = previous
+                path.reverse()  # Reverse the path to start from the initial position
                 action_queue = PathfindingResult.build_action_queue(path, unit)
+                #print(f"found path for {unit.unit_id} {path} {total_move_cost}", file=sys.stderr)
                 return PathfindingResult(path, total_move_cost, action_queue)
 
             for direction in directions:
@@ -54,8 +58,7 @@ class PathfindingResult:
 
                 move_cost = PathfindingResult.move_cost(game_state, np.array(current), direction, unit)
                 if move_cost > 99999:
-                    #print(f"move cost is too high for {unit.unit_id} {move_cost} {direction}", file=sys.stderr)
-                    continue  # Skip this direction if move cost is None
+                    continue  # Skip this direction if move cost is too high
 
                 tentative_g_score = g_score[current] + move_cost
 
@@ -87,11 +90,9 @@ class PathfindingResult:
     @staticmethod
     def build_action_queue(path, unit):
         action_queue = []
-        if(len(path) == 1):
-            action_queue.append(unit.move(direction_to(np.array(unit.pos), np.array(path[0])), repeat=0, n=1))
-            return action_queue
-        else:
-            for step in range(min(len(path) - 1, 20)):
-                direction = direction_to(np.array(path[step]), np.array(path[step + 1]))
-                action_queue.append(unit.move(direction, repeat=0, n=1))
-            return action_queue
+        for step in range(len(path) - 1):  # Iterate through the path
+            # Calculate direction from the current step to the next step
+            direction = direction_to(np.array(path[step]), np.array(path[step + 1]))
+            action_queue.append(unit.move(direction, repeat=0, n=1))
+        
+        return action_queue
