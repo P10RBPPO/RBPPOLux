@@ -28,11 +28,24 @@ class RobotController:
             closest_factory_tile = factory_tiles[np.argmin(factory_distances)]
             self.assign_factory(unit_id, closest_factory_tile)
 
+        # Assign a role using the determine_role method
+        if unit_id not in self.unit_roles:
+            role = self.determine_role(unit_id, unit)
+            self.assign_role(unit_id, role)
+
     def assign_role(self, unit_id, role):
         self.unit_roles[unit_id] = role
     
     def assign_factory(self, unit_id, factory_pos):
         self.robot_to_factory[unit_id] = factory_pos
+
+    def determine_role(self, unit_id, unit):
+        # Placeholder for future criteria-based role assignment
+        # Example: if some condition is met, return a different role
+        # if some_condition:
+        #     return "Other Role"
+
+        return "Ice Miner"  # Default role
     
     def update_game_state(self, new_game_state):
         self.game_state = new_game_state
@@ -43,12 +56,9 @@ class RobotController:
         self.unit_roles = {unit_id: role for unit_id, role in self.unit_roles.items() if unit_id in current_unit_ids}
         # Update existing units and add new units
         for unit_id, unit in new_game_state.units[self.player].items():
-            self.units[unit_id] = unit
-            if unit_id not in self.unit_types:
-                self.unit_types[unit_id] = unit.unit_type
-            if unit_id not in self.unit_roles:
-                self.assign_role(unit_id, "Ice Miner")
-    
+            if unit_id not in self.units:
+                # Use add_unit to add new units
+                self.add_unit(unit_id, unit, unit.unit_type)
 
     def control_units(self, actions):
         factory_tiles, factory_units = self.get_factories(self.game_state)
@@ -67,12 +77,10 @@ class RobotController:
         # Get the assigned factory for this robot
         assigned_factory = self.robot_to_factory.get(unit_id, None)
 
-        # If no factory is assigned, assign the closest factory
+        # If no factory is assigned, skip (this should not happen if add_unit is used correctly)
         if assigned_factory is None:
-            factory_distances = np.linalg.norm(factory_tiles - unit.pos, axis=1)
-            closest_factory_tile = factory_tiles[np.argmin(factory_distances)]
-            self.assign_factory(unit_id, closest_factory_tile)
-            assigned_factory = closest_factory_tile
+            print(f"Warning: Unit {unit_id} has no assigned factory.", file=sys.stderr)
+            return
 
         adjacent_to_factory = np.array_equal(unit.pos, assigned_factory)
 
