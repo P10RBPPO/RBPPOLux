@@ -161,20 +161,20 @@ class PPO:
     
     def rollout(self):
         # Batch data
-        batch_obs = []             # batch observations
-        batch_acts = []            # batch actions
-        batch_log_probs = []       # log probs of each action
-        batch_rews = []            # batch rewards
+        batch_obs = []              # batch observations
+        batch_acts = []             # batch actions
+        batch_log_probs = []        # log probs of each action
+        batch_rews = []             # batch rewards
         #batch_rtgs = []            # batch rewards-to-go
-        batch_lens = []            # episodic lengths in batch
+        batch_lens = []             # episodic lengths in batch
         
-        batch_vals = []            # ?
-        batch_dones = []           # Done flags
+        batch_vals = []             # batch values
+        batch_dones = []            # Done flags
         
         # Episodic data
-        ep_rews = []
-        ep_vals = []
-        ep_dones = []
+        ep_rews = []                # episodic rewards
+        ep_vals = []                # episodic values
+        ep_dones = []               # episodic done flags
         
         # Number of timesteps run so far this batch    
         t = 0
