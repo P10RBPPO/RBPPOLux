@@ -18,6 +18,9 @@ class RobotController:
         self.robot_to_factory = {}  # Tracks which factory each robot is assigned to
 
     def add_unit(self, unit_id, unit, unit_type):
+        """
+        Adds a new unit to the controller and assigns it a role and factory.
+        """
         self.units[unit_id] = unit
         self.unit_types[unit_id] = unit_type
 
@@ -48,35 +51,53 @@ class RobotController:
         return "Ice Miner"  # Default role
     
     def update_game_state(self, new_game_state):
+        """
+        Updates the game state and synchronizes all units.
+        """
         self.game_state = new_game_state
-        # Remove dead units
+
+        # Get the current unit IDs from the new game state
         current_unit_ids = set(new_game_state.units[self.player].keys())
+
+        # Remove dead units
         self.units = {unit_id: unit for unit_id, unit in self.units.items() if unit_id in current_unit_ids}
         self.unit_types = {unit_id: unit_type for unit_id, unit_type in self.unit_types.items() if unit_id in current_unit_ids}
         self.unit_roles = {unit_id: role for unit_id, role in self.unit_roles.items() if unit_id in current_unit_ids}
+        self.robot_to_factory = {unit_id: factory for unit_id, factory in self.robot_to_factory.items() if unit_id in current_unit_ids}
+
         # Update existing units and add new units
         for unit_id, unit in new_game_state.units[self.player].items():
-            if unit_id not in self.units:
-                # Use add_unit to add new units
+            if unit_id in self.units:
+                # Update the state of existing units
+                self.units[unit_id] = unit
+            else:
+                # Add new units
                 self.add_unit(unit_id, unit, unit.unit_type)
 
     def control_units(self, actions):
-        factory_tiles, factory_units = self.get_factories(self.game_state)
+        """
+        Controls all units and updates the actions dictionary.
+        """
         ice_tile_locations = self.get_ice_tile_locations(self.game_state)
         ore_tile_locations = self.get_ore_tile_locations(self.game_state)
 
         for unit_id, unit in self.units.items():
-            role = self.unit_roles.get(unit_id, None)
-            if role == "Ice Miner":
-                self.control_ice_miner(unit_id, unit, factory_tiles, ice_tile_locations, actions)
-            elif role == "Ore Miner":
-                self.control_ore_miner(unit_id, unit, factory_tiles, ore_tile_locations, actions)
-        
+            if(len(unit.action_queue) == 0):
+                role = self.unit_roles.get(unit_id, None)
+                if role == "Ice Miner":
+                    actions[unit_id] = self.control_ice_miner(unit_id, unit, ice_tile_locations)
+                elif role == "Ore Miner":
+                    actions[unit_id] = self.control_ore_miner(unit_id, unit, ore_tile_locations)
+                else:
+                    actions = None
+                    print(f"Warning: Unit {unit_id} has no role assigned.", file=sys.stderr)
+
         # Resolve conflicts before returning actions
         actions = self.resolve_conflicts(actions)
+        #print(f"Actions: {actions}", file=sys.stderr)
         return actions
 
-    def control_ice_miner(self, unit_id, unit, factory_tiles, ice_tile_locations, actions):
+    def control_ice_miner(self, unit_id, unit, ice_tile_locations):
         # Get the assigned factory for this robot
         assigned_factory = self.robot_to_factory.get(unit_id, None)
 
@@ -87,21 +108,21 @@ class RobotController:
 
         # If the robot is carrying ice, return to the assigned factory
         if unit.cargo.ice >= 60:
-            self.return_to_factory(unit_id, unit, assigned_factory, actions, resource_type=0, resource_amount=unit.cargo.ice)
+            return self.return_to_factory(unit_id, unit, assigned_factory, resource_type=0, resource_amount=unit.cargo.ice)
         # If the robot is not carrying ice, go to the closest unclaimed ice tile
         elif unit.cargo.ice < 60:
             closest_ice_tile = self.claim_tile(unit_id, unit, ice_tile_locations, self.claimed_ice_tiles)
-
             if closest_ice_tile is not None:
                 if np.all(closest_ice_tile == unit.pos):  # If the robot is already on the ice tile
                     if unit.power >= unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state):
-                        actions[unit_id] = [unit.dig(repeat=0, n=1)]  # Perform the digging action
+                        return [unit.dig(repeat=0, n=1)]  # Perform the digging action
                     else:
-                        actions[unit_id] = [unit.recharge(x=unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state))]
+                        return [unit.recharge(x=unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state))]
                 else:
-                    self.move_to_tile(unit_id, unit, closest_ice_tile, actions)
+                    #print(f"Unit {unit_id} moving to ice tile {closest_ice_tile}", file=sys.stderr)
+                    return self.move_to_tile(unit, closest_ice_tile)
 
-    def control_ore_miner(self, unit_id, unit, factory_tiles, ore_tile_locations, actions):
+    def control_ore_miner(self, unit_id, unit, ore_tile_locations):
         # Get the assigned factory for this robot
         assigned_factory = self.robot_to_factory.get(unit_id, None)
 
@@ -112,7 +133,7 @@ class RobotController:
 
         # If the robot is carrying ore, return to the assigned factory
         if unit.cargo.ore >= 60:
-            self.return_to_factory(unit_id, unit, assigned_factory, actions, resource_type=1, resource_amount=unit.cargo.ore)
+            return self.return_to_factory(unit_id, unit, assigned_factory, resource_type=1, resource_amount=unit.cargo.ore)
         # If the robot is not carrying ore, go to the closest unclaimed ore tile
         elif unit.cargo.ore < 60:
             closest_ore_tile = self.claim_tile(unit_id, unit, ore_tile_locations, self.claimed_ice_tiles)
@@ -120,11 +141,12 @@ class RobotController:
             if closest_ore_tile is not None:
                 if np.all(closest_ore_tile == unit.pos):  # If the robot is already on the ore tile
                     if unit.power >= unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state):
-                        actions[unit_id] = [unit.dig(repeat=0, n=1)]  # Perform the digging action
+                        return [unit.dig(repeat=0, n=1)]  # Perform the digging action
                     else:
-                        actions[unit_id] = [unit.recharge(x=unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state))]
+                        return [unit.recharge(x=unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state))]
                 else:
-                    self.move_to_tile(unit_id, unit, closest_ore_tile, actions)
+                    #print(f"Unit {unit_id} moving to ore tile {closest_ore_tile}", file=sys.stderr)
+                    return self.move_to_tile(unit, closest_ore_tile)
 
     
     def resolve_conflicts(self, actions):
@@ -252,9 +274,10 @@ class RobotController:
         # If no unclaimed tiles are available, return None
         return None
 
-    def return_to_factory(self, unit_id, unit, assigned_factory, actions, resource_type, resource_amount):
+    def return_to_factory(self, unit_id, unit, assigned_factory, resource_type, resource_amount):
         """
         Handles the logic for returning to the factory and transferring resources.
+        Returns the action for the unit.
         """
         direction = direction_to(unit.pos, assigned_factory)
         adjacent_to_factory = np.array_equal(unit.pos, assigned_factory)
@@ -262,42 +285,29 @@ class RobotController:
         if adjacent_to_factory:
             # Transfer resources to the factory
             if unit.power >= unit.action_queue_cost(self.game_state):
-                actions[unit_id] = [unit.transfer(direction, resource_type, resource_amount, repeat=0)]
+                actions = [unit.transfer(direction, resource_type, resource_amount, repeat=0)]
                 # Optionally pick up power from the factory
                 factory_power = self.get_closest_factory_unit(unit, self.game_state).power
                 power_to_pickup = int(factory_power * 0.15)
-                actions[unit_id].append(unit.pickup(4, power_to_pickup, repeat=0, n=1))
+                actions.append(unit.pickup(4, power_to_pickup, repeat=0, n=1))
+                return actions
             else:
                 # If not enough power, just pick up power
                 factory_power = self.get_closest_factory_unit(unit, self.game_state).power
                 power_to_pickup = int(factory_power * 0.15)
-                actions[unit_id] = [unit.pickup(4, power_to_pickup, repeat=0, n=1)]
+                return [unit.pickup(4, power_to_pickup, repeat=0, n=1)]
         else:
             # Move towards the factory
-            if len(unit.action_queue) == 0:
-                pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, assigned_factory, self.game_state)
-                if pathfinding_result:
-                    if unit.power >= pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state):
-                        actions[unit_id] = pathfinding_result.action_queue
-                    else:
-                        actions[unit_id] = [unit.recharge(x=pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state))]
+            return self.move_to_tile(unit, assigned_factory)
 
-    def move_to_tile(self, unit_id, unit, target_tile, actions):
-        """
-        Handles the logic for moving a unit to a specific tile.
-        If the unit is already at the target tile, no movement is performed.
-        """
-        if np.all(unit.pos == target_tile):  # If the unit is already at the target tile
-            return  # No movement needed
-
-        # Check if the unit has an empty action queue
-        if len(unit.action_queue) == 0:
-            # Perform pathfinding to the target tile
-            pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, target_tile, self.game_state)
-            if pathfinding_result:
-                # Check if the unit has enough power to execute the path
-                if unit.power >= pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state):
-                    actions[unit_id] = pathfinding_result.action_queue  # Assign the pathfinding action queue
-                else:
-                    # Recharge if the unit does not have enough power
-                    actions[unit_id] = [unit.recharge(x=pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state))]
+    def move_to_tile(self, unit, target_tile):
+        # Perform pathfinding to the target tile
+        pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, target_tile, self.game_state)
+        if pathfinding_result:
+            # Check if the unit has enough power to execute the path
+            # print(f"Unit {unit.unit_id} has power {unit.power} and needs {pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state)}", file=sys.stderr)
+            if unit.power >= pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state):
+                return pathfinding_result.action_queue  # Return the pathfinding action queue
+            else:
+                # Return a recharge action if the unit does not have enough power
+                return [unit.recharge(x=pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state))]
