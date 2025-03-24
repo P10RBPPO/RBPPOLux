@@ -168,12 +168,12 @@ class PPO:
         #batch_rtgs = []            # batch rewards-to-go
         batch_lens = []             # episodic lengths in batch
         
-        batch_vals = []             # batch values
+        batch_vals = []             # batch critic values
         batch_dones = []            # Done flags
         
         # Episodic data
         ep_rews = []                # episodic rewards
-        ep_vals = []                # episodic values
+        ep_vals = []                # episodic critic values
         ep_dones = []               # episodic done flags
         
         # Number of timesteps run so far this batch    
