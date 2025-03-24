@@ -99,13 +99,7 @@ class RobotController:
                     else:
                         actions[unit_id] = [unit.recharge(x=unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state))]
                 else:
-                    if len(unit.action_queue) == 0:
-                        pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, closest_ice_tile, self.game_state)
-                        if pathfinding_result:
-                            if unit.power >= pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state):
-                                actions[unit_id] = pathfinding_result.action_queue
-                            else:
-                                actions[unit_id] = [unit.recharge(x=pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state))]
+                    self.move_to_tile(unit_id, unit, closest_ice_tile, actions)
 
     def control_ore_miner(self, unit_id, unit, factory_tiles, ore_tile_locations, actions):
         # Get the assigned factory for this robot
@@ -130,13 +124,7 @@ class RobotController:
                     else:
                         actions[unit_id] = [unit.recharge(x=unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state))]
                 else:
-                    if len(unit.action_queue) == 0:
-                        pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, closest_ore_tile, self.game_state)
-                        if pathfinding_result:
-                            if unit.power >= pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state):
-                                actions[unit_id] = pathfinding_result.action_queue
-                            else:
-                                actions[unit_id] = [unit.recharge(x=pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state))]
+                    self.move_to_tile(unit_id, unit, closest_ore_tile, actions)
 
     
     def resolve_conflicts(self, actions):
@@ -293,3 +281,23 @@ class RobotController:
                         actions[unit_id] = pathfinding_result.action_queue
                     else:
                         actions[unit_id] = [unit.recharge(x=pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state))]
+
+    def move_to_tile(self, unit_id, unit, target_tile, actions):
+        """
+        Handles the logic for moving a unit to a specific tile.
+        If the unit is already at the target tile, no movement is performed.
+        """
+        if np.all(unit.pos == target_tile):  # If the unit is already at the target tile
+            return  # No movement needed
+
+        # Check if the unit has an empty action queue
+        if len(unit.action_queue) == 0:
+            # Perform pathfinding to the target tile
+            pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, target_tile, self.game_state)
+            if pathfinding_result:
+                # Check if the unit has enough power to execute the path
+                if unit.power >= pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state):
+                    actions[unit_id] = pathfinding_result.action_queue  # Assign the pathfinding action queue
+                else:
+                    # Recharge if the unit does not have enough power
+                    actions[unit_id] = [unit.recharge(x=pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state))]
