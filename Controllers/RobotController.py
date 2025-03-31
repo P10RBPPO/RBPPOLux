@@ -64,6 +64,7 @@ class RobotController:
         self.units = {unit_id: unit for unit_id, unit in self.units.items() if unit_id in current_unit_ids}
         self.unit_types = {unit_id: unit_type for unit_id, unit_type in self.unit_types.items() if unit_id in current_unit_ids}
         self.unit_roles = {unit_id: role for unit_id, role in self.unit_roles.items() if unit_id in current_unit_ids}
+        self.robot_to_factory = {unit_id: factory for unit_id, factory in self.robot_to_factory.items() if unit_id in current_unit_ids}
 
         # Get the current factory IDs and positions
         current_factories = new_game_state.factories[self.player]
