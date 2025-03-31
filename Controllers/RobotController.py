@@ -6,6 +6,7 @@ from lux.utils import direction_to, my_turn_to_place_factory
 import numpy as np
 import sys
 from PathfindingResult import PathfindingResult
+from TileOccupation import TileOccupation
 
 class RobotController:
     def __init__(self, game_state, player):
@@ -16,7 +17,7 @@ class RobotController:
         self.unit_roles = {}
         self.claimed_ice_tiles = {}  # Tracks which ice tiles are claimed by which robot
         self.robot_to_factory = {}  # Tracks which factory each robot is assigned to
-        self.tile_occupation = {}  # Tracks tile occupation by turn
+        self.tile_occupation = []  # List of TileOccupation objects
 
     def add_unit(self, unit_id, unit, unit_type):
         """
@@ -248,15 +249,13 @@ class RobotController:
                 pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, tile, self.game_state, current_turn)
                 if pathfinding_result:
                     arrival_turn = max(pathfinding_result.tile_occupation.values())
-                    if self.is_tile_available(tuple(tile), arrival_turn, unit_id):
+                    if not self.is_tile_occupied(tuple(tile), arrival_turn, unit_id):
                         # Claim the tile for this robot
                         claimed_tiles[tuple(tile)] = unit_id
 
                         # Mark the tile as occupied by this robot
-                        if tuple(tile) not in self.tile_occupation:
-                            self.tile_occupation[tuple(tile)] = {}  # Initialize as a dictionary
-                        for turn in range(arrival_turn, arrival_turn + 10):  # Occupied for 10 turns
-                            self.tile_occupation[tuple(tile)][turn] = unit_id
+                        turns = list(range(arrival_turn, arrival_turn + 10))  # Occupied for 10 turns
+                        self.tile_occupation.append(TileOccupation(tuple(tile), turns, unit_id))
 
                         return tile
 
@@ -283,10 +282,8 @@ class RobotController:
             arrival_turn = current_turn  # Already at the factory
 
         # Mark the factory tile as occupied by this robot
-        if tuple(assigned_factory) not in self.tile_occupation:
-            self.tile_occupation[tuple(assigned_factory)] = {}  # Initialize as a dictionary
-        for turn in range(arrival_turn, arrival_turn + 2):  # Occupied for 2 turns
-            self.tile_occupation[tuple(assigned_factory)][turn] = unit_id
+        turns = list(range(arrival_turn, arrival_turn + 2))  # Occupied for 2 turns
+        self.tile_occupation.append(TileOccupation(tuple(assigned_factory), turns, unit_id))
 
         # If the robot is adjacent to the factory, perform actions
         if np.array_equal(unit.pos, assigned_factory):
