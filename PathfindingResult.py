@@ -7,10 +7,11 @@ import numpy as np
 import sys
 
 class PathfindingResult:
-    def __init__(self, path, move_cost, action_queue):
+    def __init__(self, path, move_cost, action_queue, tile_occupation):
         self.path = path
         self.total_move_cost = move_cost
         self.action_queue = action_queue
+        self.tile_occupation = tile_occupation  # Dictionary of tile positions and the turns they are occupied
 
     # heuristic for A* search
     # we only care initially if we get closer to the target
@@ -22,9 +23,8 @@ class PathfindingResult:
     # A* search algorithm
     # returns a PathfindingResult object
     @staticmethod
-    def astar_search(unit, start, goal, game_state):
+    def astar_search(unit, start, goal, game_state, current_turn):
         directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
-        map_width, map_height = 48, 48
         open_set = []
         heapq.heappush(open_set, (0, tuple(start)))
         came_from = {}
@@ -37,16 +37,22 @@ class PathfindingResult:
             if current == tuple(goal):
                 path = [current]  # Start with the goal
                 total_move_cost = 0
+                tile_occupation = {}  # Track when each tile is occupied
+                turn = current_turn
+
                 while current in came_from:
                     previous = came_from[current]
                     path.append(previous)
                     total_move_cost += PathfindingResult.move_cost(
                         game_state, np.array(previous), direction_to(np.array(previous), np.array(current)), unit
                     )
+                    turn += 1
+                    tile_occupation[tuple(previous)] = turn  # Mark the tile as occupied at this turn
                     current = previous
+
                 path.reverse()  # Reverse the path to start from the initial position
                 action_queue = PathfindingResult.build_action_queue(path, unit)
-                return PathfindingResult(path, total_move_cost, action_queue)
+                return PathfindingResult(path, total_move_cost, action_queue, tile_occupation)
 
             for direction in directions:
                 neighbor = (current[0] + direction[0], current[1] + direction[1])
