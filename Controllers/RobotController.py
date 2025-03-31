@@ -210,7 +210,7 @@ class RobotController:
             if len(unit_ids) > 1 or target_in_current_positions:
                 unit_ids.sort(key=lambda uid: (self.unit_types[uid] != 'HEAVY', int(uid.split('_')[1])))
                 for uid in unit_ids:
-                    # Attempt sidestepping
+                    # Attempt sidestepping only if the target position is on the same x or y coordinate
                     final_target = tuple(self.units[uid].pos)
                     if actions[uid]:
                         last_action = actions[uid][-1]
@@ -220,16 +220,17 @@ class RobotController:
                             final_target = (final_target[0] + dx, final_target[1] + dy)
 
                     sidestepped = False
-                    for sidestep_dir in sidestep_directions:
-                        dx, dy = direction_map[sidestep_dir]
-                        sidestep_pos = (current_positions[uid][0] + dx, current_positions[uid][1] + dy)
-                        # Check if the sidestep position is valid and not an enemy factory
-                        if sidestep_pos not in target_positions and sidestep_pos not in current_positions.values() and not self.is_enemy_factory(sidestep_pos):
-                            # Construct a complete sidestep action
-                            resolved_actions[uid] = [np.array([0, sidestep_dir, 1, 0, 0, 1])]  # Complete action array
-                            print(f"Turn {turn}: Conflict resolved: {uid} sidestepped to {sidestep_pos} to avoid conflict at {target_pos}", file=sys.stderr)
-                            sidestepped = True
-                            break
+                    if final_target[0] == target_pos[0] or final_target[1] == target_pos[1]:  # Same x or y coordinate
+                        for sidestep_dir in sidestep_directions:
+                            dx, dy = direction_map[sidestep_dir]
+                            sidestep_pos = (current_positions[uid][0] + dx, current_positions[uid][1] + dy)
+                            # Check if the sidestep position is valid and not an enemy factory
+                            if sidestep_pos not in target_positions and sidestep_pos not in current_positions.values() and not self.is_enemy_factory(sidestep_pos):
+                                # Construct a complete sidestep action
+                                resolved_actions[uid] = [np.array([0, sidestep_dir, 1, 0, 0, 1])]  # Complete action array
+                                print(f"Turn {turn}: Conflict resolved: {uid} sidestepped to {sidestep_pos} to avoid conflict at {target_pos}", file=sys.stderr)
+                                sidestepped = True
+                                break
 
                     if not sidestepped:
                         resolved_actions[uid] = []  # Cancel the move action
