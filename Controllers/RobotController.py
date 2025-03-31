@@ -53,6 +53,7 @@ class RobotController:
     def update_game_state(self, new_game_state):
         """
         Updates the game state and synchronizes all units.
+        Reassigns robots to new factories if their assigned factory is dead.
         """
         self.game_state = new_game_state
 
@@ -63,7 +64,25 @@ class RobotController:
         self.units = {unit_id: unit for unit_id, unit in self.units.items() if unit_id in current_unit_ids}
         self.unit_types = {unit_id: unit_type for unit_id, unit_type in self.unit_types.items() if unit_id in current_unit_ids}
         self.unit_roles = {unit_id: role for unit_id, role in self.unit_roles.items() if unit_id in current_unit_ids}
-        self.robot_to_factory = {unit_id: factory for unit_id, factory in self.robot_to_factory.items() if unit_id in current_unit_ids}
+
+        # Get the current factory IDs and positions
+        current_factories = new_game_state.factories[self.player]
+        current_factory_positions = {tuple(factory.pos): factory for factory in current_factories.values()}
+
+        # Reassign robots if their assigned factory is dead
+        for unit_id, assigned_factory in list(self.robot_to_factory.items()):
+            if tuple(assigned_factory) not in current_factory_positions:
+                # The assigned factory is dead, reassign to the closest factory
+                factory_tiles, _ = self.get_factories(new_game_state)
+                if len(factory_tiles) > 0:
+                    factory_distances = np.linalg.norm(factory_tiles - self.units[unit_id].pos, axis=1)
+                    closest_factory_tile = factory_tiles[np.argmin(factory_distances)]
+                    self.assign_factory(unit_id, closest_factory_tile)
+                    print(f"Reassigned robot {unit_id} to new factory at {closest_factory_tile}", file=sys.stderr)
+                else:
+                    # No factories left, unassign the robot
+                    del self.robot_to_factory[unit_id]
+                    print(f"Unassigned robot {unit_id} because no factories are left", file=sys.stderr)
 
         # Update existing units and add new units
         for unit_id, unit in new_game_state.units[self.player].items():
@@ -215,33 +234,6 @@ class RobotController:
 
         return resolved_actions
 
-    def get_factories(self, game_state):
-        factories = game_state.factories[self.player]
-        factory_tiles, factory_units = [], []
-        for unit_id, factory in factories.items():
-            factory_tiles += [factory.pos]
-            factory_units += [factory]
-        factory_tiles = np.array(factory_tiles)
-        return factory_tiles, factory_units
-    
-    def get_ice_tile_locations(self, game_state):
-        ice_map = game_state.board.ice
-        return np.argwhere(ice_map == 1)
-
-    def get_rubble_tile_locations(self, game_state):
-        rubble_map = game_state.board.rubble
-        return np.argwhere(rubble_map == 1)
-
-    def get_ore_tile_locations(self, game_state):
-        ore_map = game_state.board.ore
-        return np.argwhere(ore_map == 1)
-    
-    def get_closest_factory_unit(self, unit, game_state):
-        factory_tiles, factory_units = self.get_factories(game_state)
-        factory_distances = np.mean((factory_tiles - unit.pos) ** 2, 1)
-        closest_factory_tile = factory_tiles[np.argmin(factory_distances)]
-        return factory_units[np.argmin(factory_distances)]
-
     def claim_tile(self, unit_id, unit, tile_locations, claimed_tiles):
         """
         Claims the closest unclaimed tile (e.g., ice or ore) for the given unit or returns the already-claimed tile.
@@ -311,3 +303,30 @@ class RobotController:
             else:
                 # Return a recharge action if the unit does not have enough power
                 return [unit.recharge(x=pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state))]
+
+    def get_factories(self, game_state):
+        factories = game_state.factories[self.player]
+        factory_tiles, factory_units = [], []
+        for unit_id, factory in factories.items():
+            factory_tiles += [factory.pos]
+            factory_units += [factory]
+        factory_tiles = np.array(factory_tiles)
+        return factory_tiles, factory_units
+    
+    def get_ice_tile_locations(self, game_state):
+        ice_map = game_state.board.ice
+        return np.argwhere(ice_map == 1)
+
+    def get_rubble_tile_locations(self, game_state):
+        rubble_map = game_state.board.rubble
+        return np.argwhere(rubble_map == 1)
+
+    def get_ore_tile_locations(self, game_state):
+        ore_map = game_state.board.ore
+        return np.argwhere(ore_map == 1)
+    
+    def get_closest_factory_unit(self, unit, game_state):
+        factory_tiles, factory_units = self.get_factories(game_state)
+        factory_distances = np.mean((factory_tiles - unit.pos) ** 2, 1)
+        closest_factory_tile = factory_tiles[np.argmin(factory_distances)]
+        return factory_units[np.argmin(factory_distances)]

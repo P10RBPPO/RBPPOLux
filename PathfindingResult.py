@@ -83,12 +83,20 @@ class PathfindingResult:
     
     @staticmethod
     def build_action_queue(path, unit):
+        """
+        Builds an action queue for the given path.
+        Ensures the action queue does not exceed the maximum allowed length.
+        """
         action_queue = []
         for step in range(len(path) - 1):  # Iterate through the path
             # Calculate direction from the current step to the next step
             direction = direction_to(np.array(path[step]), np.array(path[step + 1]))
             action_queue.append(unit.move(direction, repeat=0, n=1))
-        
+            
+            # Stop adding actions if the max length is reached
+            if len(action_queue) >= 20:
+                break
+
         return action_queue
 
     @staticmethod
