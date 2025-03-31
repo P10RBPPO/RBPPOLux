@@ -156,7 +156,7 @@ class RobotController:
             return self.return_to_factory(unit_id, unit, assigned_factory, resource_type=1, resource_amount=unit.cargo.ore)
         # If the robot is not carrying ore, go to the closest unclaimed ore tile
         elif unit.cargo.ore < 60:
-            closest_ore_tile = self.claim_tile(unit_id, unit, ore_tile_locations, self.claimed_ice_tiles)
+            closest_ore_tile = self.claim_tile(unit_id, unit, ore_tile_locations, self.claimed_ice_tiles, self.game_state.real_env_steps)
 
             if closest_ore_tile is not None:
                 if np.all(closest_ore_tile == unit.pos):  # If the robot is already on the ore tile
@@ -194,10 +194,10 @@ class RobotController:
                         dx, dy = direction_map[direction]
                         target_pos = (current_pos[0] + dx, current_pos[1] + dy)
 
-                        # Check if the target position is an enemy factory
-                        if self.is_enemy_factory(target_pos):
-                            print(f"Turn {turn}: Clearing action queue for {unit_id} due to movement into enemy factory at {target_pos}", file=sys.stderr)
-                            resolved_actions[unit_id] = []  # Clear the action queue
+                        # Check if the target position is occupied
+                        if tuple(target_pos) in self.tile_occupation and turn in self.tile_occupation[tuple(target_pos)]:
+                            print(f"Turn {turn}: Conflict detected for robot {unit_id} at target {target_pos}.", file=sys.stderr)
+                            resolved_actions[unit_id] = []  # Clear the action queue to allow reevaluation
                             break
 
                         if target_pos not in target_positions:
@@ -205,38 +205,13 @@ class RobotController:
                         target_positions[target_pos].append(unit_id)
                         current_pos = target_pos  # Update current position for the next step in the queue
 
+        # Resolve conflicts for shared target positions
         for target_pos, unit_ids in target_positions.items():
-            target_in_current_positions = target_pos in current_positions.values()
-            if len(unit_ids) > 1 or target_in_current_positions:
-                unit_ids.sort(key=lambda uid: (self.unit_types[uid] != 'HEAVY', int(uid.split('_')[1])))
-                for uid in unit_ids:
-                    # Attempt sidestepping only if the target position is on the same x or y coordinate
-                    final_target = tuple(self.units[uid].pos)
-                    if actions[uid]:
-                        last_action = actions[uid][-1]
-                        if isinstance(last_action, np.ndarray) and last_action[0] == 0:
-                            final_direction = last_action[1]
-                            dx, dy = direction_map[final_direction]
-                            final_target = (final_target[0] + dx, final_target[1] + dy)
-
-                    sidestepped = False
-                    if final_target[0] == target_pos[0] or final_target[1] == target_pos[1]:  # Same x or y coordinate
-                        for sidestep_dir in sidestep_directions:
-                            dx, dy = direction_map[sidestep_dir]
-                            sidestep_pos = (current_positions[uid][0] + dx, current_positions[uid][1] + dy)
-                            # Check if the sidestep position is valid and not an enemy factory
-                            if sidestep_pos not in target_positions and sidestep_pos not in current_positions.values() and not self.is_enemy_factory(sidestep_pos):
-                                # Construct a complete sidestep action
-                                resolved_actions[uid] = [np.array([0, sidestep_dir, 1, 0, 0, 1])]  # Complete action array
-                                print(f"Turn {turn}: Conflict resolved: {uid} sidestepped to {sidestep_pos} to avoid conflict at {target_pos}", file=sys.stderr)
-                                sidestepped = True
-                                break
-
-                    if not sidestepped:
-                        resolved_actions[uid] = []  # Cancel the move action
-                        print(f"Turn {turn}: Conflict resolved: {uid} cancelled move action due to occupied position {target_pos}", file=sys.stderr)
-            else:
-                resolved_actions[unit_ids[0]] = actions[unit_ids[0]]
+            if len(unit_ids) > 1:
+                unit_ids.sort(key=lambda uid: int(uid.split('_')[1]))  # Prioritize by robot ID
+                for uid in unit_ids[1:]:  # Allow the first robot to proceed, others must wait
+                    resolved_actions[uid] = []  # Clear the action queue to allow reevaluation
+                    print(f"Turn {turn}: Robot {uid} is waiting due to conflict at {target_pos}.", file=sys.stderr)
 
         for unit_id in actions:
             if unit_id not in resolved_actions:
@@ -247,6 +222,7 @@ class RobotController:
     def claim_tile(self, unit_id, unit, tile_locations, claimed_tiles, current_turn):
         """
         Claims the closest unclaimed tile (e.g., ice or ore) for the given unit or returns the already-claimed tile.
+        Marks the tile as occupied from the arrival turn until the robot decides to return to the factory.
         """
         # Check if the robot has already claimed a tile
         claimed_tile = None
@@ -272,9 +248,16 @@ class RobotController:
                 pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, tile, self.game_state, current_turn)
                 if pathfinding_result:
                     arrival_turn = max(pathfinding_result.tile_occupation.values())
-                    if self.is_tile_available(tuple(tile), arrival_turn):
+                    if self.is_tile_available(tuple(tile), arrival_turn, unit_id):
                         # Claim the tile for this robot
                         claimed_tiles[tuple(tile)] = unit_id
+
+                        # Mark the tile as occupied by this robot
+                        if tuple(tile) not in self.tile_occupation:
+                            self.tile_occupation[tuple(tile)] = {}  # Initialize as a dictionary
+                        for turn in range(arrival_turn, arrival_turn + 10):  # Occupied for 10 turns
+                            self.tile_occupation[tuple(tile)][turn] = unit_id
+
                         return tile
 
         # If no unclaimed tiles are available, return None
@@ -283,12 +266,30 @@ class RobotController:
     def return_to_factory(self, unit_id, unit, assigned_factory, resource_type, resource_amount):
         """
         Handles the logic for returning to the factory and transferring resources.
-        Returns the action for the unit.
+        Marks the factory tile as occupied until the robot moves away.
         """
         direction = direction_to(unit.pos, assigned_factory)
-        adjacent_to_factory = np.array_equal(unit.pos, assigned_factory)
+        current_turn = self.game_state.real_env_steps
 
-        if adjacent_to_factory:
+        # Calculate the arrival turn if the robot is not already adjacent to the factory
+        if not np.array_equal(unit.pos, assigned_factory):
+            pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, assigned_factory, self.game_state, current_turn)
+            if pathfinding_result:
+                arrival_turn = max(pathfinding_result.tile_occupation.values())
+            else:
+                print(f"Warning: No path found for unit {unit_id} to factory at {assigned_factory}.", file=sys.stderr)
+                return []
+        else:
+            arrival_turn = current_turn  # Already at the factory
+
+        # Mark the factory tile as occupied by this robot
+        if tuple(assigned_factory) not in self.tile_occupation:
+            self.tile_occupation[tuple(assigned_factory)] = {}  # Initialize as a dictionary
+        for turn in range(arrival_turn, arrival_turn + 2):  # Occupied for 2 turns
+            self.tile_occupation[tuple(assigned_factory)][turn] = unit_id
+
+        # If the robot is adjacent to the factory, perform actions
+        if np.array_equal(unit.pos, assigned_factory):
             # Transfer resources to the factory
             if unit.power >= unit.action_queue_cost(self.game_state):
                 actions = [unit.transfer(direction, resource_type, resource_amount, repeat=0)]
@@ -304,7 +305,7 @@ class RobotController:
                 return [unit.pickup(4, power_to_pickup, repeat=0, n=1)]
         else:
             # Move towards the factory
-            return self.move_to_tile(unit, assigned_factory, self.game_state.real_env_steps)
+            return self.move_to_tile(unit, assigned_factory, current_turn)
 
     def move_to_tile(self, unit, target_tile, current_turn):
         # Perform pathfinding to the target tile
@@ -316,19 +317,18 @@ class RobotController:
                     self.tile_occupation[tile] = []
                 self.tile_occupation[tile].append(turn)
 
+            # Check if the target tile is occupied at the arrival turn
+            arrival_turn = max(pathfinding_result.tile_occupation.values())
+            if not self.is_tile_available(tuple(target_tile), arrival_turn, unit.unit_id):
+                print(f"Turn {current_turn}: Target tile {target_tile} is occupied at turn {arrival_turn}. Robot {unit.unit_id} will reevaluate.", file=sys.stderr)
+                return []  # Clear the action queue to allow reevaluation
+
             # Check if the unit has enough power to execute the path
             if unit.power >= pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state):
                 return pathfinding_result.action_queue  # Return the pathfinding action queue
             else:
-                adjacent_to_factory = np.array_equal(unit.pos, self.get_closest_factory(unit, self.game_state))
-                if adjacent_to_factory:
-                    # If adjacent to the factory, pick up power
-                    factory_power = self.get_closest_factory_unit(unit, self.game_state).power
-                    power_to_pickup = int(factory_power * 0.15)
-                    return [unit.pickup(4, power_to_pickup, repeat=0, n=1)]
-                else:
-                    # Return a recharge action if the unit does not have enough power
-                    return [unit.recharge(x=pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state))]
+                # Return a recharge action if the unit does not have enough power
+                return [unit.recharge(x=pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state))]
 
     def get_factories(self, game_state):
         factories = game_state.factories[self.player]
@@ -371,10 +371,17 @@ class RobotController:
         factory_at_target = factory_occupancy_map[target_pos[0], target_pos[1]]
         return factory_at_target != -1 and factory_at_target not in self.game_state.teams[self.player].factory_strains
 
-    def is_tile_available(self, tile, turn):
+    def is_tile_available(self, tile, turn, unit_id=None):
         """
         Checks if a tile is available at a specific turn.
+        If a unit_id is provided, the tile is considered available if it is occupied by that unit.
         """
         if tile not in self.tile_occupation:
             return True
-        return turn not in self.tile_occupation[tile]
+        # Check if the tile is occupied at the given turn
+        if turn in self.tile_occupation[tile]:
+            # Allow access if the tile is occupied by the same unit
+            if unit_id and self.tile_occupation[tile][turn] == unit_id:
+                return True
+            return False
+        return True
