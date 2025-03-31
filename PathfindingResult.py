@@ -46,20 +46,16 @@ class PathfindingResult:
                     current = previous
                 path.reverse()  # Reverse the path to start from the initial position
                 action_queue = PathfindingResult.build_action_queue(path, unit)
-                #print(f"found path for {unit.unit_id} {path} {total_move_cost}", file=sys.stderr)
                 return PathfindingResult(path, total_move_cost, action_queue)
 
             for direction in directions:
                 neighbor = (current[0] + direction[0], current[1] + direction[1])
 
-                # Check if neighbor is within bounds
-                if not (0 <= neighbor[0] < map_width and 0 <= neighbor[1] < map_height):
+                # Skip invalid tiles
+                if not PathfindingResult.is_valid_tile(game_state, neighbor, unit):
                     continue
 
                 move_cost = PathfindingResult.move_cost(game_state, np.array(current), direction, unit)
-                if move_cost > 99999:
-                    continue  # Skip this direction if move cost is too high
-
                 tentative_g_score = g_score[current] + move_cost
 
                 if neighbor not in g_score or tentative_g_score < g_score[neighbor]:
@@ -75,17 +71,15 @@ class PathfindingResult:
     # This is taken from the library and modified to work with any location
     @staticmethod
     def move_cost(game_state, current_pos, direction, unit):
+        """
+        Calculates the cost of moving from the current position in the given direction.
+        Assumes the target tile is valid.
+        """
         board = game_state.board
         move_deltas = np.array([[0, 0], [0, -1], [1, 0], [0, 1], [-1, 0]])
         target_pos = current_pos + move_deltas[direction]
-        if target_pos[0] < 0 or target_pos[1] < 0 or target_pos[1] >= len(board.rubble) or target_pos[0] >= len(board.rubble[0]):
-            return 999999
-        factory_there = board.factory_occupancy_map[target_pos[0], target_pos[1]]
-        if factory_there not in game_state.teams[unit.agent_id].factory_strains and factory_there != -1:
-            return 999999
         rubble_at_target = board.rubble[target_pos[0]][target_pos[1]]
-        power_at_tile = 0
-        return math.floor(unit.unit_cfg.MOVE_COST + power_at_tile + unit.unit_cfg.RUBBLE_MOVEMENT_COST * rubble_at_target)
+        return math.floor(unit.unit_cfg.MOVE_COST + unit.unit_cfg.RUBBLE_MOVEMENT_COST * rubble_at_target)
     
     @staticmethod
     def build_action_queue(path, unit):
@@ -96,3 +90,17 @@ class PathfindingResult:
             action_queue.append(unit.move(direction, repeat=0, n=1))
         
         return action_queue
+
+    @staticmethod
+    def is_valid_tile(game_state, target_pos, unit):
+        """
+        Checks if a tile is valid for movement.
+        Returns True if the tile is valid, False otherwise.
+        """
+        board = game_state.board
+        if target_pos[0] < 0 or target_pos[1] < 0 or target_pos[1] >= len(board.rubble) or target_pos[0] >= len(board.rubble[0]):
+            return False  # Out of bounds
+        factory_there = board.factory_occupancy_map[target_pos[0], target_pos[1]]
+        if factory_there not in game_state.teams[unit.agent_id].factory_strains and factory_there != -1:
+            return False  # Occupied by an enemy factory
+        return True
