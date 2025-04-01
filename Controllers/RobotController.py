@@ -282,8 +282,14 @@ class RobotController:
             arrival_turn = current_turn  # Already at the factory
 
         # Mark the factory tile as occupied by this robot
-        turns = list(range(arrival_turn, arrival_turn + 2))  # Occupied for 2 turns
-        self.tile_occupation.append(TileOccupation(tuple(assigned_factory), turns, unit_id))
+        occupation = self.get_tile_occupation(tuple(assigned_factory))
+        if not occupation:
+            # If no TileOccupation exists for this tile, create one
+            self.tile_occupation.append(TileOccupation(tuple(assigned_factory), list(range(arrival_turn, arrival_turn + 2)), unit_id))
+        else:
+            # Update the existing TileOccupation object
+            occupation.turns.extend(range(arrival_turn, arrival_turn + 2))
+            occupation.owner = unit_id
 
         # If the robot is adjacent to the factory, perform actions
         if np.array_equal(unit.pos, assigned_factory):
@@ -308,24 +314,40 @@ class RobotController:
         # Perform pathfinding to the target tile
         pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, target_tile, self.game_state, current_turn)
         if pathfinding_result:
-            # Update tile occupation
-            for tile, turn in pathfinding_result.tile_occupation.items():
-                if tile not in self.tile_occupation:
-                    self.tile_occupation[tile] = []
-                self.tile_occupation[tile].append(turn)
-
             # Check if the target tile is occupied at the arrival turn
             arrival_turn = max(pathfinding_result.tile_occupation.values())
-            if not self.is_tile_available(tuple(target_tile), arrival_turn, unit.unit_id):
+            if self.is_tile_occupied(tuple(target_tile), arrival_turn, unit.unit_id):
                 print(f"Turn {current_turn}: Target tile {target_tile} is occupied at turn {arrival_turn}. Robot {unit.unit_id} will reevaluate.", file=sys.stderr)
                 return []  # Clear the action queue to allow reevaluation
 
             # Check if the unit has enough power to execute the path
             if unit.power >= pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state):
+                # Update tile occupation only if the robot can successfully move
+                for tile, turn in pathfinding_result.tile_occupation.items():
+                    occupation = self.get_tile_occupation(tile)
+                    if not occupation:
+                        # If no TileOccupation exists for this tile, create one
+                        self.tile_occupation.append(TileOccupation(tile, [turn], unit.unit_id))
+                    else:
+                        # Update the existing TileOccupation object
+                        occupation.turns.append(turn)
+
                 return pathfinding_result.action_queue  # Return the pathfinding action queue
             else:
-                # Return a recharge action if the unit does not have enough power
-                return [unit.recharge(x=pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state))]
+                # If the robot is inside the factory, pick up power instead of recharging
+                assigned_factory = self.robot_to_factory.get(unit.unit_id, None)
+                if assigned_factory is not None and np.array_equal(unit.pos, assigned_factory):
+                    factory_power = self.get_closest_factory_unit(unit, self.game_state).power
+                    power_to_pickup = int(factory_power * 0.15)
+                    #print(f"Turn {current_turn}: Robot {unit.unit_id} is picking up power from factory at {assigned_factory}.", file=sys.stderr)
+                    return [unit.pickup(4, power_to_pickup, repeat=0, n=1)]
+                else:
+                    # Return a recharge action if the unit does not have enough power
+                    return [unit.recharge(x=pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state))]
+
+        # If no pathfinding result is found, return an empty action queue
+        print(f"Turn {current_turn}: No path found for robot {unit.unit_id} to target tile {target_tile}.", file=sys.stderr)
+        return []
 
     def get_factories(self, game_state):
         factories = game_state.factories[self.player]
@@ -398,3 +420,14 @@ class RobotController:
                     return False
                 return True
         return False
+
+    def get_tile_occupation(self, tile):
+        """
+        Finds the TileOccupation object for a specific tile.
+        :param tile: Tuple (x, y) representing the tile's position.
+        :return: The TileOccupation object if found, otherwise None.
+        """
+        for occupation in self.tile_occupation:
+            if occupation.tile == tile:
+                return occupation
+        return None
