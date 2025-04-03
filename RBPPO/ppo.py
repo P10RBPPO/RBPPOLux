@@ -6,6 +6,9 @@ from torch.distributions import MultivariateNormal
 from torch.optim import Adam
 from network import FeedForwardNN
 
+from luxenv import LuxCustomEnv
+import gymnasium as gym
+
 class PPO:
     def __init__(self, env):
         # Init hyperparams
@@ -293,7 +296,7 @@ class PPO:
     #     return batch_rtgs 
 
 # PPO Test code
-import gymnasium as gym
-env = gym.make('Pendulum-v1')
+#env = gym.make('Pendulum-v1')
+env = LuxCustomEnv()
 model = PPO(env)
 model.learn(10000)
