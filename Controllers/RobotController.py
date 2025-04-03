@@ -183,7 +183,9 @@ class RobotController:
     
     def resolve_conflicts(self, actions, game_state):
         """
-        Resolves conflicts by checking if two robots are about to move into the same tile on the next step.
+        Resolves conflicts by checking if two robots are about to move into the same tile
+        or if a robot is trying to move into a tile already occupied by another robot.
+        This includes both newly decided actions and actions already in progress.
         """
         direction_map = {
             0: (0, 0),   # center (no movement)
@@ -193,43 +195,72 @@ class RobotController:
             4: (-1, 0)   # left
         }
 
-        target_positions = {}
-        resolved_actions = {}
+        target_positions = {}  # Maps target positions to the list of robots intending to move there
+        resolved_actions = {}  # Final resolved actions for each robot
 
         # Track current positions of all robots
         current_positions = {unit_id: tuple(unit.pos) for unit_id, unit in game_state.units[self.player].items()}
 
+        # First pass: Analyze new actions and populate target_positions
+        # print(f"Turn {game_state.real_env_steps} size of actions: {len(actions)}", file=sys.stderr)
         for unit_id, action_list in actions.items():
-            if action_list:
-                current_pos = tuple(game_state.units[self.player][unit_id].pos)
-                # Only consider the first action in the queue (immediate next move)
-                action = action_list[0]
+            if len(action_list) > 0:  # Explicitly check if the action list is not empty
+                current_pos = current_positions[unit_id]
+                action = action_list[0]  # Only consider the first action in the queue
                 if isinstance(action, np.ndarray) and action[0] == 0:  # Check if it's a move action
                     direction = action[1]
                     dx, dy = direction_map[direction]
                     target_pos = (current_pos[0] + dx, current_pos[1] + dy)
 
-                    # Check if the target position is already in the target_positions map
-                    if target_pos in target_positions:
-                        # Conflict detected: multiple robots want to move to the same tile
-                        print(f"Turn {game_state.real_env_steps}: Conflict detected for robot {unit_id} at target {target_pos}.", file=sys.stderr)
+                    # Check if the target position is already occupied
+                    if target_pos in current_positions.values():
+                        print(f"Turn {game_state.real_env_steps}: Robot {unit_id} cannot move to {target_pos} because it is occupied.", file=sys.stderr)
+                        resolved_actions[unit_id] = []  # Cancel the movement action
+                    else:
+                        # Add the robot to the target_positions map
+                        if target_pos not in target_positions:
+                            target_positions[target_pos] = []
+                        target_positions[target_pos].append(unit_id)
+                else:
+                    # If it's not a move action, keep it as is
+                    resolved_actions[unit_id] = action_list
+
+        # Second pass: Check action queues from game_state for conflicts
+        for unit_id, unit in game_state.units[self.player].items():
+            if len(unit.action_queue) > 0:  # Check if the unit has an action queue
+                current_pos = tuple(unit.pos)
+                action = unit.action_queue[0]  # Only consider the first action in the queue
+                if isinstance(action, np.ndarray) and action[0] == 0:  # Check if it's a move action
+                    direction = action[1]
+                    dx, dy = direction_map[direction]
+                    target_pos = (current_pos[0] + dx, current_pos[1] + dy)
+
+                    # Check if the target position is already occupied or has a conflict
+                    if target_pos in current_positions.values():
+                        print(f"Turn {game_state.real_env_steps}: Robot {unit_id} cannot move to {target_pos} because it is occupied.", file=sys.stderr)
+                        resolved_actions[unit_id] = []  # Cancel the movement action
+                    elif target_pos in target_positions:
+                        print(f"Turn {game_state.real_env_steps}: Conflict detected at {target_pos} for robot {unit_id}.", file=sys.stderr)
                         target_positions[target_pos].append(unit_id)
                     else:
+                        # Add the robot to the target_positions map
                         target_positions[target_pos] = [unit_id]
 
         # Resolve conflicts for shared target positions
         for target_pos, unit_ids in target_positions.items():
             if len(unit_ids) > 1:
+                # Conflict detected: Multiple robots want to move to the same tile
+                print(f"Turn {game_state.real_env_steps}: Conflict detected at {target_pos} for robots {unit_ids}.", file=sys.stderr)
                 # Sort robots by their IDs to prioritize one robot
                 unit_ids.sort(key=lambda uid: int(uid.split('_')[1]))  # Prioritize by robot ID
                 for uid in unit_ids[1:]:  # Allow the first robot to proceed, others must wait
-                    resolved_actions[uid] = []  # Clear the action queue to prevent movement
+                    resolved_actions[uid] = []  # Cancel the movement action
                     print(f"Turn {game_state.real_env_steps}: Robot {uid} is waiting due to conflict at {target_pos}.", file=sys.stderr)
 
         # Add non-conflicting actions to resolved_actions
-        for unit_id in actions:
+        for unit_id, action_list in actions.items():
             if unit_id not in resolved_actions:
-                resolved_actions[unit_id] = actions[unit_id]
+                resolved_actions[unit_id] = action_list
 
         return resolved_actions
 
@@ -277,9 +308,6 @@ class RobotController:
         direction = direction_to(unit.pos, assigned_factory)
         current_turn = self.game_state.real_env_steps
 
-
-
-
         # If the robot is adjacent to the factory, perform actions
         if np.array_equal(unit.pos, assigned_factory):
             # Transfer resources to the factory
@@ -307,19 +335,6 @@ class RobotController:
         # Perform pathfinding to the target tile
         pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, target_tile, self.game_state, current_turn)
         if pathfinding_result:
-            # Check if the target tile is occupied
-            # if tuple(target_tile) in self.occupied_tiles:
-            #     print(f"Turn {current_turn}: Target tile {target_tile} is occupied. Robot {unit.unit_id} will adjust target.", file=sys.stderr)
-                
-            #     # Get the second-to-last tile in the path
-            #     if len(pathfinding_result.path) > 1:
-            #         adjusted_target_tile = pathfinding_result.path[-2]
-            #         print(f"Turn {current_turn}: Robot {unit.unit_id} changing target to {adjusted_target_tile}.", file=sys.stderr)
-            #         target_tile = adjusted_target_tile
-            #     else:
-            #         # If the path has only one tile, reevaluate
-            #         print(f"Turn {current_turn}: No valid alternative target for robot {unit.unit_id}.", file=sys.stderr)
-            #         return []
 
             # Check if the unit has enough power to execute the path
             if unit.power >= pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state):
