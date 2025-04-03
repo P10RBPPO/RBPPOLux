@@ -37,6 +37,7 @@ class RobotController:
         if unit_id not in self.unit_roles:
             role = self.determine_role(unit_id, unit)
             self.assign_role(unit_id, role)
+            print(f"Assigned role '{role}' to unit {unit_id}", file=sys.stderr)
 
     def assign_role(self, unit_id, role):
         self.unit_roles[unit_id] = role
@@ -45,12 +46,18 @@ class RobotController:
         self.robot_to_factory[unit_id] = factory_pos
 
     def determine_role(self, unit_id, unit):
-        # Placeholder for future criteria-based role assignment
-        # Example: if some condition is met, return a different role
-        # if some_condition:
-        #     return "Other Role"
+        """
+        Determines the role of a unit based on its index in the self.units dictionary.
+        Alternates between "Ore Miner" and "Ice Miner".
+        """
+        # Get the index of the unit in the self.units dictionary
+        unit_index = list(self.units.keys()).index(unit_id)
 
-        return "Ice Miner"  # Default role
+        # Alternate roles based on the index
+        if unit_index % 2 == 0:
+            return "Ore Miner"
+        else:
+            return "Ice Miner"
     
     def update_game_state(self, new_game_state):
         """

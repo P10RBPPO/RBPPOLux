@@ -41,7 +41,8 @@ class FactoryController:
         factory_tiles, factory_units = [], []
         for unit_id, factory in factories.items():
             if factory.power >= env_cfg.ROBOTS["HEAVY"].POWER_COST and \
-            factory.cargo.metal >= env_cfg.ROBOTS["HEAVY"].METAL_COST:
+            factory.cargo.metal >= env_cfg.ROBOTS["HEAVY"].METAL_COST and not \
+            self.is_unit_inside_factory(factory):
                 actions[unit_id] = factory.build_heavy()
                 return actions # return early to prioritize building actions before watering actions
             
@@ -105,3 +106,10 @@ class FactoryController:
                 best_location = spawn
 
         return best_location
+    
+    def is_unit_inside_factory(self, factory):
+        for unit_id, unit in self.game_state.units[self.player].items():
+            if np.array_equal(unit.pos, factory.pos):
+                print(f"Trying to build a unit inside the factory at {factory.pos} but there is already a unit there.", file=sys.stderr)
+                return True
+        return False
