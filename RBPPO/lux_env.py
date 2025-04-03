@@ -1,9 +1,9 @@
 import gymnasium as gym
 from gymnasium import spaces
-from luxai_s2.env import LuxAI_S2
-from lux.config import EnvConfig
+from luxai_s2.env import LuxAI_S2, EnvConfig
+#from lux.config import EnvConfig
 #from lux.kit import obs_to_game_state
-from agent import Agent
+from agent import Agent #Why tf does this not work!?
 
 class LuxCustomEnv(gym.Env):
     def __init__(self, env_config=None):

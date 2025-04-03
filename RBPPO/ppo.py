@@ -6,7 +6,7 @@ from torch.distributions import MultivariateNormal
 from torch.optim import Adam
 from network import FeedForwardNN
 
-from luxenv import LuxCustomEnv
+from lux_env import LuxCustomEnv
 import gymnasium as gym
 
 class PPO:
