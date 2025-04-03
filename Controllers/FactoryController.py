@@ -110,6 +110,6 @@ class FactoryController:
     def is_unit_inside_factory(self, factory):
         for unit_id, unit in self.game_state.units[self.player].items():
             if np.array_equal(unit.pos, factory.pos):
-                print(f"Turn {self.game_state.real_env_steps} Trying to build a unit inside the factory at {factory.pos} but there is already a unit there.", file=sys.stderr)
+                #print(f"Turn {self.game_state.real_env_steps} Trying to build a unit inside the factory at {factory.pos} but there is already a unit there.", file=sys.stderr)
                 return True
         return False

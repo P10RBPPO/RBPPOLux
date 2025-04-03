@@ -214,7 +214,7 @@ class RobotController:
 
                     # Check if the target position is already occupied
                     if target_pos in current_positions.values():
-                        print(f"Turn {game_state.real_env_steps}: Robot {unit_id} cannot move to {target_pos} because it is occupied.", file=sys.stderr)
+                        #print(f"Turn {game_state.real_env_steps}: Robot {unit_id} cannot move to {target_pos} because it is occupied.", file=sys.stderr)
                         resolved_actions[unit_id] = []  # Cancel the movement action
                     else:
                         # Add the robot to the target_positions map
@@ -232,15 +232,17 @@ class RobotController:
                 action = unit.action_queue[0]  # Only consider the first action in the queue
                 if isinstance(action, np.ndarray) and action[0] == 0:  # Check if it's a move action
                     direction = action[1]
+                    #reverse_direction = self.reverse_direction(direction)
                     dx, dy = direction_map[direction]
                     target_pos = (current_pos[0] + dx, current_pos[1] + dy)
 
                     # Check if the target position is already occupied or has a conflict
                     if target_pos in current_positions.values():
-                        print(f"Turn {game_state.real_env_steps}: Robot {unit_id} cannot move to {target_pos} because it is occupied.", file=sys.stderr)
-                        resolved_actions[unit_id] = []  # Cancel the movement action
+                        #print(f"Turn {game_state.real_env_steps}: Robot {unit_id} cannot move to {target_pos} because it is occupied.", file=sys.stderr)
+                        resolved_actions[unit_id] = []
+                        #resolved_actions[unit_id] = [unit.move(reverse_direction)]  # Cancel the movement action
                     elif target_pos in target_positions:
-                        print(f"Turn {game_state.real_env_steps}: Conflict detected at {target_pos} for robot {unit_id}.", file=sys.stderr)
+                        #print(f"Turn {game_state.real_env_steps}: Conflict detected at {target_pos} for robot {unit_id}.", file=sys.stderr)
                         target_positions[target_pos].append(unit_id)
                     else:
                         # Add the robot to the target_positions map
@@ -250,12 +252,12 @@ class RobotController:
         for target_pos, unit_ids in target_positions.items():
             if len(unit_ids) > 1:
                 # Conflict detected: Multiple robots want to move to the same tile
-                print(f"Turn {game_state.real_env_steps}: Conflict detected at {target_pos} for robots {unit_ids}.", file=sys.stderr)
+                #print(f"Turn {game_state.real_env_steps}: Conflict detected at {target_pos} for robots {unit_ids}.", file=sys.stderr)
                 # Sort robots by their IDs to prioritize one robot
                 unit_ids.sort(key=lambda uid: int(uid.split('_')[1]))  # Prioritize by robot ID
                 for uid in unit_ids[1:]:  # Allow the first robot to proceed, others must wait
                     resolved_actions[uid] = []  # Cancel the movement action
-                    print(f"Turn {game_state.real_env_steps}: Robot {uid} is waiting due to conflict at {target_pos}.", file=sys.stderr)
+                    #print(f"Turn {game_state.real_env_steps}: Robot {uid} is waiting due to conflict at {target_pos}.", file=sys.stderr)
 
         # Add non-conflicting actions to resolved_actions
         for unit_id, action_list in actions.items():
@@ -346,7 +348,7 @@ class RobotController:
                 return [unit.recharge(x=pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state))]
 
         # If no pathfinding result is found, return an empty action queue
-        print(f"Turn {current_turn}: No path found for robot {unit.unit_id} to target tile {target_tile}.", file=sys.stderr)
+        #print(f"Turn {current_turn}: No path found for robot {unit.unit_id} to target tile {target_tile}.", file=sys.stderr)
         return []
 
     def get_factories(self, game_state):
@@ -389,3 +391,16 @@ class RobotController:
         factory_occupancy_map = self.game_state.board.factory_occupancy_map
         factory_at_target = factory_occupancy_map[target_pos[0], target_pos[1]]
         return factory_at_target != -1 and factory_at_target not in self.game_state.teams[self.player].factory_strains
+    
+    def reverse_direction(self, direction):
+        """
+        Returns the reverse of the given direction.
+        """
+        reverse_direction_map = {
+            0: 0,  # center
+            1: 3,  # up → down
+            2: 4,  # right → left
+            3: 1,  # down → up
+            4: 2   # left → right
+        }
+        return reverse_direction_map[direction]

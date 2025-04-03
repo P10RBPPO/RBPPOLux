@@ -24,7 +24,17 @@ class PathfindingResult:
     # returns a PathfindingResult object
     @staticmethod
     def astar_search(unit, start, goal, game_state, current_turn):
+        """
+        A* search algorithm to find the shortest path from start to goal.
+        Returns a PathfindingResult object or None if no path is found.
+        """
         directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
+
+        # Check if the goal state is valid
+        if not PathfindingResult.is_valid_tile(game_state, goal, unit):
+            #print(f"Goal {goal} is invalid for unit {unit.unit_id}. Returning empty path.", file=sys.stderr)
+            return None  # Return immediately if the goal is invalid
+
         open_set = []
         heapq.heappush(open_set, (0, tuple(start)))
         came_from = {}
@@ -70,7 +80,7 @@ class PathfindingResult:
                     f_score[neighbor] = tentative_g_score + PathfindingResult.heuristic(neighbor, goal)
                     heapq.heappush(open_set, (f_score[neighbor], neighbor))
 
-        print(f"no path found for {unit.unit_id}", file=sys.stderr)
+        print(f"No path found for unit {unit.unit_id} to goal {goal}.", file=sys.stderr)
         return None  # No path found
 
     # Calculate the cost of moving from current_pos to target_pos
@@ -117,4 +127,7 @@ class PathfindingResult:
         factory_there = board.factory_occupancy_map[target_pos[0], target_pos[1]]
         if factory_there not in game_state.teams[unit.agent_id].factory_strains and factory_there != -1:
             return False  # Occupied by an enemy factory
+        for unit_id, unit in game_state.units[unit.agent_id].items():
+            if np.array_equal(unit.pos, target_pos):
+                return False
         return True
