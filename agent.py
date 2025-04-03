@@ -29,11 +29,11 @@ class Agent():
         actions = dict()
 
         game_state = obs_to_game_state(step, self.env_cfg, obs)
-        self.robot_controller.update_game_state(game_state)  # Update the RobotController with the new game_state
+        #self.robot_controller.update_game_state(game_state)  # Update the RobotController with the new game_state
         self.factory_controller.update_game_state(game_state) # Update the FactoryController with the new game_state
 
         # Control units using the RobotController
-        robot_actions = self.robot_controller.control_units(actions, game_state.real_env_steps)
+        robot_actions = self.robot_controller.control_units(actions, game_state)
 
         # Handle factory actions using the FactoryController
         factory_actions = self.factory_controller.handle_factory_actions(self.player, self.env_cfg, game_state, actions)
