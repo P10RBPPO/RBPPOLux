@@ -63,6 +63,7 @@ class RobotController:
         """
         Updates the game state and synchronizes all units.
         Reassigns robots to new factories if their assigned factory is dead.
+Frees claimed tiles for dead robots.
         """
         self.game_state = new_game_state
 
@@ -74,6 +75,9 @@ class RobotController:
         self.unit_types = {unit_id: unit_type for unit_id, unit_type in self.unit_types.items() if unit_id in current_unit_ids}
         self.unit_roles = {unit_id: role for unit_id, role in self.unit_roles.items() if unit_id in current_unit_ids}
         self.robot_to_factory = {unit_id: factory for unit_id, factory in self.robot_to_factory.items() if unit_id in current_unit_ids}
+
+        # Free claimed tiles for dead robots
+        self.claimed_ice_tiles = {tile: claimant for tile, claimant in self.claimed_ice_tiles.items() if claimant in current_unit_ids}
 
         # Get the current factory IDs and positions
         current_factories = new_game_state.factories[self.player]
@@ -310,6 +314,10 @@ class RobotController:
         direction = direction_to(unit.pos, assigned_factory)
         current_turn = self.game_state.real_env_steps
 
+        # remove claim from robot
+        if tuple(unit.pos) in self.claimed_ice_tiles:
+            del self.claimed_ice_tiles[tuple(unit.pos)]
+
         # If the robot is adjacent to the factory, perform actions
         if np.array_equal(unit.pos, assigned_factory):
             # Transfer resources to the factory
@@ -317,13 +325,13 @@ class RobotController:
                 actions = [unit.transfer(direction, resource_type, resource_amount, repeat=0)]
                 # Optionally pick up power from the factory
                 factory_power = self.get_closest_factory_unit(unit, self.game_state).power
-                power_to_pickup = int(factory_power * 0.15)
+                power_to_pickup = int(factory_power * 0.20)
                 actions.append(unit.pickup(4, power_to_pickup, repeat=0, n=1))
                 return actions
             else:
                 # If not enough power, just pick up power
                 factory_power = self.get_closest_factory_unit(unit, self.game_state).power
-                power_to_pickup = int(factory_power * 0.15)
+                power_to_pickup = int(factory_power * 0.20)
                 return [unit.pickup(4, power_to_pickup, repeat=0, n=1)]
         else:
             # Move towards the factory
@@ -344,8 +352,14 @@ class RobotController:
                 self.occupied_tiles.add(tuple(target_tile))
                 return pathfinding_result.action_queue  # Return the pathfinding action queue
             else:
-                # Return a recharge action if the unit does not have enough power
-                return [unit.recharge(x=pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state))]
+                closest_factory = self.get_closest_factory(unit, self.game_state)
+                if np.array_equal(unit.pos, closest_factory):
+                    factory_power = self.get_closest_factory_unit(unit, self.game_state).power
+                    power_to_pickup = int(factory_power * 0.20)
+                    return [unit.pickup(4, power_to_pickup, repeat=0, n=1)]
+                else:
+                    # Return a recharge action if the unit does not have enough power
+                    return [unit.recharge(x=pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state))]
 
         # If no pathfinding result is found, return an empty action queue
         #print(f"Turn {current_turn}: No path found for robot {unit.unit_id} to target tile {target_tile}.", file=sys.stderr)
