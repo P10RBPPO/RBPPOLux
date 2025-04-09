@@ -4,9 +4,9 @@ import numpy as np
 from torch import nn
 from torch.distributions import MultivariateNormal
 from torch.optim import Adam
-from network import FeedForwardNN
+from RBPPO_network import FeedForwardNN
 
-from lux_env import LuxCustomEnv
+from RBPPO_lux_env import LuxCustomEnv
 import gymnasium as gym
 
 class PPO:
@@ -16,6 +16,10 @@ class PPO:
         
         # Get environment information
         self.env = env
+        env.reload_spaces()
+        print(env.observation_space)
+        print("---------------------------------------")
+        print(env.action_space)
         self.obs_dim = env.observation_space.shape[0]
         self.act_dim = env.action_space.shape[0]
         
@@ -298,5 +302,6 @@ class PPO:
 # PPO Test code
 #env = gym.make('Pendulum-v1')
 env = LuxCustomEnv()
+env.reset()
 model = PPO(env)
 model.learn(10000)

@@ -4,6 +4,7 @@ from luxai_s2.env import LuxAI_S2, EnvConfig
 #from lux.config import EnvConfig
 #from lux.kit import obs_to_game_state
 from agent import Agent #Why tf does this not work!?
+import sys
 
 class LuxCustomEnv(gym.Env):
     def __init__(self, env_config=None):
@@ -11,26 +12,29 @@ class LuxCustomEnv(gym.Env):
         
         # LuxAI_S2 env init
         self.env = LuxAI_S2()
+        self.env.reset(seed=0)
         
         # Create an Agent instance for bidding & factory placement
         self.env_cfg = EnvConfig()
         self.agent = Agent("player_0", self.env_cfg)
 
-        self.action_space = self.env.action_space("player_0")
-        self.observation_space = self.env.observation_space("player_0")
+        self.action_space = self.env.action_space(self.agent)
+        self.observation_space = self.env.observation_space(self.agent)
         
     def reset(self, **kwargs):
         """Reset function handling bidding & factory placement."""
         obs, _ = self.env.reset(**kwargs)
-
         # Call 'early_setup' to handle bidding and factory placement
         while self.env.state.real_env_steps < 0:
             step = self.env.state.env_steps
             action = {agent: self.agent.early_setup(step, obs[agent]) for agent in self.env.agents}
             obs, _, _, _, _ = self.env.step(action)
-
         self.prev_obs = obs
         return obs, {}
+
+    def reload_spaces(self):
+        self.action_space = self.env.action_space(self.agent)
+        self.observation_space = self.env.observation_space(self.agent)
 
     def step(self, action):
         obs, reward, done, truncated, info = self.env.step(action)
