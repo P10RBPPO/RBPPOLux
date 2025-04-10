@@ -127,7 +127,11 @@ class PathfindingResult:
         factory_there = board.factory_occupancy_map[target_pos[0], target_pos[1]]
         if factory_there not in game_state.teams[unit.agent_id].factory_strains and factory_there != -1:
             return False  # Occupied by an enemy factory
-        for unit_id, unit in game_state.units[unit.agent_id].items():
-            if np.array_equal(unit.pos, target_pos):
-                return False
+
+        # Check if any unit is within 3 tiles of the original unit's position
+        for unit_id, other_unit in game_state.units[unit.agent_id].items():
+            distance = abs(unit.pos[0] - target_pos[0]) + abs(unit.pos[1] - target_pos[1])
+            if distance <= 3:
+                return False  # Tile is invalid if within 3 tiles of the original unit
+
         return True
