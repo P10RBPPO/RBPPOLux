@@ -324,9 +324,10 @@ Frees claimed tiles for dead robots.
             if unit.power >= unit.action_queue_cost(self.game_state):
                 actions = [unit.transfer(direction, resource_type, resource_amount, repeat=0)]
                 # Optionally pick up power from the factory
-                factory_power = self.get_closest_factory_unit(unit, self.game_state).power
-                power_to_pickup = int(factory_power * 0.20)
-                actions.append(unit.pickup(4, power_to_pickup, repeat=0, n=1))
+                if self.get_closest_factory_unit(unit, self.game_state).cargo.water > 0:
+                    factory_power = self.get_closest_factory_unit(unit, self.game_state).power
+                    power_to_pickup = int(factory_power * 0.20)
+                    actions.append(unit.pickup(4, power_to_pickup, repeat=0, n=1))
                 return actions
             else:
                 # If not enough power, just pick up power

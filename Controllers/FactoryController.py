@@ -39,13 +39,20 @@ class FactoryController:
     def handle_factory_actions(self, player, env_cfg, game_state, actions):
         factories = game_state.factories[player]
         factory_tiles, factory_units = [], []
+        current_turn = game_state.real_env_steps  # Get the current turn number
+
         for unit_id, factory in factories.items():
+            # Prioritize building heavy robots if resources are sufficient
             if factory.power >= env_cfg.ROBOTS["HEAVY"].POWER_COST and \
             factory.cargo.metal >= env_cfg.ROBOTS["HEAVY"].METAL_COST and not \
             self.is_unit_inside_factory(factory):
                 actions[unit_id] = factory.build_heavy()
-                return actions # return early to prioritize building actions before watering actions
-            
+                return actions  # Return early to prioritize building actions before watering actions
+
+            # Skip watering if the turn is less than 30
+            if current_turn < 30:
+                continue
+
             # Toggle watering state based on water levels
             if unit_id not in self.watering_state:
                 self.watering_state[unit_id] = False  # Initialize watering state
@@ -60,7 +67,7 @@ class FactoryController:
 
             factory_tiles += [factory.pos]
             factory_units += [factory]
-        
+
         factory_tiles = np.array(factory_tiles)
         self.factory_tiles = factory_tiles
         self.factory_units = factory_units
