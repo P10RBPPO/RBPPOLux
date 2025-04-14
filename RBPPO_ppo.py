@@ -16,10 +16,19 @@ class PPO:
         
         # Get environment information
         self.env = env
-        env.reload_spaces()
+        
+        print("-----------------PRE-RELOAD----------------------")
         print(env.observation_space)
         print("---------------------------------------")
         print(env.action_space)
+        
+        self.env.reload_spaces()
+        
+        print("------------------POST-RELOAD---------------------")
+        print(env.observation_space)
+        print("---------------------------------------")
+        print(env.action_space)
+        
         self.obs_dim = env.observation_space.shape[0]
         self.act_dim = env.action_space.shape[0]
         
