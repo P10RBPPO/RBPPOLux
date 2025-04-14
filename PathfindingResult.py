@@ -54,7 +54,7 @@ class PathfindingResult:
                     previous = came_from[current]
                     path.append(previous)
                     total_move_cost += PathfindingResult.move_cost(
-                        game_state, np.array(previous), direction_to(np.array(previous), np.array(current)), unit
+                        game_state, np.array(previous), direction_to(np.array(previous), np.array(current)), unit, include_turn_cost=False
                     )
                     turn += 1
                     tile_occupation[tuple(previous)] = turn  # Mark the tile as occupied at this turn
@@ -71,7 +71,7 @@ class PathfindingResult:
                 if not PathfindingResult.is_valid_tile(game_state, neighbor, unit):
                     continue
 
-                move_cost = PathfindingResult.move_cost(game_state, np.array(current), direction, unit)
+                move_cost = PathfindingResult.move_cost(game_state, np.array(current), direction, unit, include_turn_cost=True)
                 tentative_g_score = g_score[current] + move_cost
 
                 if neighbor not in g_score or tentative_g_score < g_score[neighbor]:
@@ -86,16 +86,24 @@ class PathfindingResult:
     # Calculate the cost of moving from current_pos to target_pos
     # This is taken from the library and modified to work with any location
     @staticmethod
-    def move_cost(game_state, current_pos, direction, unit):
+    def move_cost(game_state, current_pos, direction, unit, include_turn_cost=False):
         """
         Calculates the cost of moving from the current position in the given direction.
-        Assumes the target tile is valid.
+        If `include_turn_cost` is True, adds a small "turn cost" to prioritize faster paths.
         """
         board = game_state.board
         move_deltas = np.array([[0, 0], [0, -1], [1, 0], [0, 1], [-1, 0]])
         target_pos = current_pos + move_deltas[direction]
         rubble_at_target = board.rubble[target_pos[0]][target_pos[1]]
-        return math.floor(unit.unit_cfg.MOVE_COST + unit.unit_cfg.RUBBLE_MOVEMENT_COST * rubble_at_target)
+        
+        # Base move cost
+        move_cost = unit.unit_cfg.MOVE_COST + unit.unit_cfg.RUBBLE_MOVEMENT_COST * rubble_at_target
+        
+        # Add a small turn cost if specified
+        if include_turn_cost:
+            move_cost += 5  # Example turn cost, adjust as needed
+        
+        return math.floor(move_cost)
     
     @staticmethod
     def build_action_queue(path, unit):
