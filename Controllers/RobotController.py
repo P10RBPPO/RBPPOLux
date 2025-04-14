@@ -49,7 +49,7 @@ class RobotController:
     def determine_role(self, unit_id, unit):
         """
         Determines the role of a unit based on the factory that built it.
-        Alternates between "Ore Miner" and "Ice Miner" for each factory.
+        The first robot is an "Ore Miner," the next two are "Ice Miners," and subsequent robots alternate.
         """
         # Get the factory assigned to this unit
         assigned_factory = self.robot_to_factory.get(unit_id, None)
@@ -59,17 +59,25 @@ class RobotController:
 
         # Initialize the factory's role state if not already present
         if tuple(assigned_factory) not in self.factory_role_state:
-            self.factory_role_state[tuple(assigned_factory)] = "Ice Miner"  # Start with "Ice Miner" so the first is "Ore Miner"
+            self.factory_role_state[tuple(assigned_factory)] = {"count": 0, "last_role": "Ice Miner"}
 
-        # Alternate roles for the factory
-        last_role = self.factory_role_state[tuple(assigned_factory)]
-        if last_role == "Ice Miner":
-            new_role = "Ore Miner"
+        # Get the current count of robots assigned by this factory
+        factory_state = self.factory_role_state[tuple(assigned_factory)]
+        robot_count = factory_state["count"]
+
+        # Determine the role based on the count
+        if robot_count == 0:
+            new_role = "Ore Miner"  # First robot is an Ore Miner
+        elif robot_count in [1, 2]:
+            new_role = "Ice Miner"  # Next two robots are Ice Miners
         else:
-            new_role = "Ice Miner"
+            # Alternate roles for subsequent robots
+            last_role = factory_state["last_role"]
+            new_role = "Ore Miner" if last_role == "Ice Miner" else "Ice Miner"
 
         # Update the factory's role state
-        self.factory_role_state[tuple(assigned_factory)] = new_role
+        factory_state["count"] += 1
+        factory_state["last_role"] = new_role
 
         return new_role
     
