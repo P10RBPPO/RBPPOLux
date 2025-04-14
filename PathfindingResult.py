@@ -122,16 +122,22 @@ class PathfindingResult:
         Returns True if the tile is valid, False otherwise.
         """
         board = game_state.board
+
+        # Check if the tile is out of bounds
         if target_pos[0] < 0 or target_pos[1] < 0 or target_pos[1] >= len(board.rubble) or target_pos[0] >= len(board.rubble[0]):
             return False  # Out of bounds
+
+        # Check if the tile is occupied by an enemy factory
         factory_there = board.factory_occupancy_map[target_pos[0], target_pos[1]]
         if factory_there not in game_state.teams[unit.agent_id].factory_strains and factory_there != -1:
             return False  # Occupied by an enemy factory
 
-        # Check if any unit is within 3 tiles of the original unit's position
+        # Check if any friendly unit (excluding the original unit) is within 3 tiles of the target position
         for unit_id, other_unit in game_state.units[unit.agent_id].items():
-            distance = abs(unit.pos[0] - target_pos[0]) + abs(unit.pos[1] - target_pos[1])
-            if distance <= 3:
-                return False  # Tile is invalid if within 3 tiles of the original unit
+            if unit_id == unit.unit_id:
+                continue  # Skip the original unit
+            distance = abs(other_unit.pos[0] - target_pos[0]) + abs(other_unit.pos[1] - target_pos[1])
+            if distance <= 3 and np.array_equal(other_unit.pos, target_pos):
+                return False  # Tile is invalid if occupied by another unit within 3 tiles
 
         return True
