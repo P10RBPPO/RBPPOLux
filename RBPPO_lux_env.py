@@ -17,7 +17,6 @@ class LuxCustomEnv(gym.Env):
         # Create an Agent instance for bidding & factory placement
         self.env_cfg = EnvConfig()
         self.agent = Agent("player_0", self.env_cfg)
-        print(self.agent.player)
 
         self.action_space = self.env.action_space(self.agent.player)
         self.observation_space = self.env.observation_space(self.agent.player)

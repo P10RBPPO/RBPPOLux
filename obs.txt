@@ -1,9 +1,40 @@
-player_0
------------------PRE-RELOAD----------------------
-Dict('board': Dict('factories_per_team': Discrete(5), 'ice': Box(0, 1, (48, 48), int64), 'lichen': Box(0, 100, (48, 48), int64), 'lichen_strains': Box(-1, 99999, (48, 48), int64), 'ore': Box(0, 1, (48, 48), int64), 'rubble': Box(0, 100, (48, 48), int64), 'valid_spawns_mask': Box(0, 1, (48, 48), int64)), 'factories': Dict('player_0': Dict('cargo': Dict('ice': Discrete(4294967295), 'water': Discrete(4294967295), 'ore': Discrete(4294967295), 'metal': Discrete(4294967295)), 'pos': Box(0, 47, (2,), int64), 'power': Discrete(4294967295), 'strain_id': Discrete(4294967295), 'team_id': Discrete(2), 'unit_id': <luxai_s2.spaces.obs_space.FactoryIDSpace object at 0x7462d0440a30>), 'player_1': Dict('cargo': Dict('ice': Discrete(4294967295), 'water': Discrete(4294967295), 'ore': Discrete(4294967295), 'metal': Discrete(4294967295)), 'pos': Box(0, 47, (2,), int64), 'power': Discrete(4294967295), 'strain_id': Discrete(4294967295), 'team_id': Discrete(2), 'unit_id': <luxai_s2.spaces.obs_space.FactoryIDSpace object at 0x7462d04b7bb0>)), 'global_id': Discrete(99999999), 'real_env_steps': Discrete(1000), 'teams': Dict('player_0': Dict('team_id': Discrete(2), 'faction': <luxai_s2.spaces.act_space.FactionString object at 0x7462d04bcfd0>, 'water': Discrete(4294967295), 'metal': Discrete(4294967295), 'factories_to_place': Discrete(5), 'factory_strains': <luxai_s2.spaces.obs_space.DynamicArray object at 0x7462d04bc940>, 'place_first': Discrete(2), 'bid': Discrete(150)), 'player_1': Dict('team_id': Discrete(2), 'faction': <luxai_s2.spaces.act_space.FactionString object at 0x7462d04bc1f0>, 'water': Discrete(4294967295), 'metal': Discrete(4294967295), 'factories_to_place': Discrete(5), 'factory_strains': <luxai_s2.spaces.obs_space.DynamicArray object at 0x7462d04bc2b0>, 'place_first': Discrete(2), 'bid': Discrete(150))), 'units': Dict('player_0': Dict('action_queue': <luxai_s2.spaces.act_space.ActionsQueue object at 0x7462d04403a0>, 'cargo': Dict('ice': Discrete(1001), 'water': Discrete(1001), 'ore': Discrete(1001), 'metal': Discrete(1001)), 'pos': Box(0, 47, (2,), int64), 'power': Discrete(3001), 'team_id': Discrete(2), 'unit_id': <luxai_s2.spaces.obs_space.UnitIDSpace object at 0x7462d0440100>, 'unit_type': <luxai_s2.spaces.obs_space.UnitTypeSpace object at 0x7462d0440280>), 'player_1': Dict('action_queue': <luxai_s2.spaces.act_space.ActionsQueue object at 0x7462d0440220>, 'cargo': Dict('ice': Discrete(1001), 'water': Discrete(1001), 'ore': Discrete(1001), 'metal': Discrete(1001)), 'pos': Box(0, 47, (2,), int64), 'power': Discrete(3001), 'team_id': Discrete(2), 'unit_id': <luxai_s2.spaces.obs_space.UnitIDSpace object at 0x7462d04404f0>, 'unit_type': <luxai_s2.spaces.obs_space.UnitTypeSpace object at 0x7462d0440a00>)))
----------------------------------------
-Dict('bid': Discrete(100000), 'faction': <luxai_s2.spaces.act_space.FactionString object at 0x7462d04bc5e0>)
-------------------POST-RELOAD---------------------
-Dict('board': Dict('factories_per_team': Discrete(5), 'ice': Box(0, 1, (48, 48), int64), 'lichen': Box(0, 100, (48, 48), int64), 'lichen_strains': Box(-1, 99999, (48, 48), int64), 'ore': Box(0, 1, (48, 48), int64), 'rubble': Box(0, 100, (48, 48), int64), 'valid_spawns_mask': Box(0, 1, (48, 48), int64)), 'factories': Dict('player_0': Dict('cargo': Dict('ice': Discrete(4294967295), 'water': Discrete(4294967295), 'ore': Discrete(4294967295), 'metal': Discrete(4294967295)), 'pos': Box(0, 47, (2,), int64), 'power': Discrete(4294967295), 'strain_id': Discrete(4294967295), 'team_id': Discrete(2), 'unit_id': <luxai_s2.spaces.obs_space.FactoryIDSpace object at 0x7462d0440a30>), 'player_1': Dict('cargo': Dict('ice': Discrete(4294967295), 'water': Discrete(4294967295), 'ore': Discrete(4294967295), 'metal': Discrete(4294967295)), 'pos': Box(0, 47, (2,), int64), 'power': Discrete(4294967295), 'strain_id': Discrete(4294967295), 'team_id': Discrete(2), 'unit_id': <luxai_s2.spaces.obs_space.FactoryIDSpace object at 0x7462d04b7bb0>)), 'global_id': Discrete(99999999), 'real_env_steps': Discrete(1000), 'teams': Dict('player_0': Dict('team_id': Discrete(2), 'faction': <luxai_s2.spaces.act_space.FactionString object at 0x7462d04bcfd0>, 'water': Discrete(4294967295), 'metal': Discrete(4294967295), 'factories_to_place': Discrete(5), 'factory_strains': <luxai_s2.spaces.obs_space.DynamicArray object at 0x7462d04bc940>, 'place_first': Discrete(2), 'bid': Discrete(150)), 'player_1': Dict('team_id': Discrete(2), 'faction': <luxai_s2.spaces.act_space.FactionString object at 0x7462d04bc1f0>, 'water': Discrete(4294967295), 'metal': Discrete(4294967295), 'factories_to_place': Discrete(5), 'factory_strains': <luxai_s2.spaces.obs_space.DynamicArray object at 0x7462d04bc2b0>, 'place_first': Discrete(2), 'bid': Discrete(150))), 'units': Dict('player_0': Dict('action_queue': <luxai_s2.spaces.act_space.ActionsQueue object at 0x7462d04403a0>, 'cargo': Dict('ice': Discrete(1001), 'water': Discrete(1001), 'ore': Discrete(1001), 'metal': Discrete(1001)), 'pos': Box(0, 47, (2,), int64), 'power': Discrete(3001), 'team_id': Discrete(2), 'unit_id': <luxai_s2.spaces.obs_space.UnitIDSpace object at 0x7462d0440100>, 'unit_type': <luxai_s2.spaces.obs_space.UnitTypeSpace object at 0x7462d0440280>), 'player_1': Dict('action_queue': <luxai_s2.spaces.act_space.ActionsQueue object at 0x7462d0440220>, 'cargo': Dict('ice': Discrete(1001), 'water': Discrete(1001), 'ore': Discrete(1001), 'metal': Discrete(1001)), 'pos': Box(0, 47, (2,), int64), 'power': Discrete(3001), 'team_id': Discrete(2), 'unit_id': <luxai_s2.spaces.obs_space.UnitIDSpace object at 0x7462d04404f0>, 'unit_type': <luxai_s2.spaces.obs_space.UnitTypeSpace object at 0x7462d0440a00>)))
----------------------------------------
-Dict('factory_0': Discrete(3), 'factory_1': Discrete(3), 'factory_2': Discrete(3), 'factory_3': Discrete(3), 'factory_4': Discrete(3))
+{'units': {'player_0': {'unit_4': {'team_id': 0, 'unit_id': 'unit_4', 'power': 490, 'unit_type': 'HEAVY', 'pos': array([26, 26]), 'cargo': {'ice': 0, 'ore': 0, 'water': 0, 'metal': 0}, 'action_queue': array([[0, 1, 0, 0, 0, 1],
+       [0, 4, 0, 0, 0, 1]])}, 'unit_6': {'team_id': 0, 'unit_id': 'unit_6', 'power': 510, 'unit_type': 'HEAVY', 'pos': array([15,  9]), 'cargo': {'ice': 0, 'ore': 0, 'water': 0, 'metal': 0}, 'action_queue': array([], dtype=float64)}}, 'player_1': {'unit_5': {'team_id': 1, 'unit_id': 'unit_5', 'power': 490, 'unit_type': 'HEAVY', 'pos': array([18, 38]), 'cargo': {'ice': 0, 'ore': 0, 'water': 0, 'metal': 0}, 'action_queue': array([[0, 1, 0, 0, 0, 1],
+       [0, 1, 0, 0, 0, 1],
+       [0, 1, 0, 0, 0, 1]])}, 'unit_7': {'team_id': 1, 'unit_id': 'unit_7', 'power': 510, 'unit_type': 'HEAVY', 'pos': array([ 2, 18]), 'cargo': {'ice': 0, 'ore': 0, 'water': 0, 'metal': 0}, 'action_queue': array([], dtype=float64)}}}, 'teams': {'player_0': {'team_id': 0, 'faction': 'AlphaStrike', 'water': 0, 'metal': 0, 'factories_to_place': 0, 'factory_strains': array([0, 2]), 'place_first': True, 'bid': 0}, 'player_1': {'team_id': 1, 'faction': 'AlphaStrike', 'water': 0, 'metal': 0, 'factories_to_place': 0, 'factory_strains': array([1, 3]), 'place_first': False, 'bid': 0}}, 'factories': {'player_0': {'factory_0': {'pos': array([27, 26]), 'power': 600, 'cargo': {'ice': 0, 'ore': 0, 'water': 148, 'metal': 50}, 'unit_id': 'factory_0', 'strain_id': 0, 'team_id': 0}, 'factory_2': {'pos': array([15,  9]), 'power': 600, 'cargo': {'ice': 0, 'ore': 0, 'water': 148, 'metal': 50}, 'unit_id': 'factory_2', 'strain_id': 2, 'team_id': 0}}, 'player_1': {'factory_1': {'pos': array([19, 38]), 'power': 600, 'cargo': {'ice': 0, 'ore': 0, 'water': 148, 'metal': 50}, 'unit_id': 'factory_1', 'strain_id': 1, 'team_id': 1}, 'factory_3': {'pos': array([ 2, 18]), 'power': 600, 'cargo': {'ice': 0, 'ore': 0, 'water': 148, 'metal': 50}, 'unit_id': 'factory_3', 'strain_id': 3, 'team_id': 1}}}, 'board': {'rubble': array([[ 0,  0,  0, ...,  0,  0,  0],
+       [ 0,  0,  0, ...,  0,  0,  0],
+       [ 0,  0,  0, ..., 19, 19,  0],
+       ...,
+       [ 0,  0,  8, ...,  0,  0,  0],
+       [ 0,  0,  8, ...,  0,  0,  0],
+       [ 8,  8,  8, ...,  0,  0,  0]]), 'ore': array([[0, 0, 0, ..., 0, 0, 0],
+       [0, 0, 0, ..., 0, 0, 0],
+       [0, 0, 0, ..., 0, 0, 0],
+       ...,
+       [0, 0, 0, ..., 0, 0, 0],
+       [0, 0, 0, ..., 0, 0, 0],
+       [0, 0, 0, ..., 0, 0, 0]]), 'ice': array([[0, 0, 0, ..., 0, 0, 0],
+       [0, 0, 0, ..., 0, 0, 0],
+       [0, 0, 0, ..., 0, 0, 0],
+       ...,
+       [0, 0, 0, ..., 0, 0, 0],
+       [0, 0, 0, ..., 0, 0, 0],
+       [0, 0, 0, ..., 0, 0, 0]]), 'lichen': array([[0, 0, 0, ..., 0, 0, 0],
+       [0, 0, 0, ..., 0, 0, 0],
+       [0, 0, 0, ..., 0, 0, 0],
+       ...,
+       [0, 0, 0, ..., 0, 0, 0],
+       [0, 0, 0, ..., 0, 0, 0],
+       [0, 0, 0, ..., 0, 0, 0]]), 'lichen_strains': array([[-1, -1, -1, ..., -1, -1, -1],
+       [-1, -1, -1, ..., -1, -1, -1],
+       [-1, -1, -1, ..., -1, -1, -1],
+       ...,
+       [-1, -1, -1, ..., -1, -1, -1],
+       [-1, -1, -1, ..., -1, -1, -1],
+       [-1, -1, -1, ..., -1, -1, -1]]), 'valid_spawns_mask': array([[False, False, False, ..., False, False, False],
+       [False,  True,  True, ...,  True,  True, False],
+       [False,  True,  True, ...,  True,  True, False],
+       ...,
+       [False,  True,  True, ...,  True,  True, False],
+       [False,  True,  True, ...,  True,  True, False],
+       [False, False, False, ..., False, False, False]]), 'factories_per_team': 2}, 'real_env_steps': 2, 'global_id': 8}

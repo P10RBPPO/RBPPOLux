@@ -9,6 +9,8 @@ from RBPPO_network import FeedForwardNN
 from RBPPO_lux_env import LuxCustomEnv
 import gymnasium as gym
 
+from lux.kit import obs_to_game_state, GameState
+
 class PPO:
     def __init__(self, env):
         # Init hyperparams
@@ -17,11 +19,7 @@ class PPO:
         # Get environment information
         self.env = env
         
-        print("-----------------PRE-RELOAD----------------------")
-        print(env.observation_space)
-        print("---------------------------------------")
-        print(env.action_space)
-        
+        # Reload obs and action spaces for post-prep phase
         self.env.reload_spaces()
         
         print("------------------POST-RELOAD---------------------")
@@ -29,8 +27,9 @@ class PPO:
         print("---------------------------------------")
         print(env.action_space)
         
-        self.obs_dim = env.observation_space.shape[0]
-        self.act_dim = env.action_space.shape[0]
+        # Rip these apart into tuples of ints (array of ints) and not dicts
+        self.obs_dim = env.observation_space #.shape[0]
+        self.act_dim = env.action_space #.shape[0]
         
         # Init actor and critic networks
         self.actor = FeedForwardNN(self.obs_dim, self.act_dim)
