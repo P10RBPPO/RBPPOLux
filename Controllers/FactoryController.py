@@ -50,7 +50,7 @@ class FactoryController:
                 return actions  # Return early to prioritize building actions before watering actions
 
             # Skip watering if the turn is less than 30
-            if current_turn < 30:
+            if current_turn < 50:
                 continue
 
             # Toggle watering state based on water levels
@@ -106,7 +106,7 @@ class FactoryController:
                 min_enemy_distance = float('inf')
 
             # Combine costs with adjusted weights
-            total_cost = (min_ice_distance * 0.6) + (min_ore_distance * 0.4) + (1 / (min_enemy_distance + 1) * 0.1)  # Adjust weights as needed
+            total_cost = (min_ice_distance * 0.5) + (min_ore_distance * 0.5) + (1 / (min_enemy_distance + 1) * 0.1)  # Adjust weights as needed
 
             if total_cost < best_cost:
                 best_cost = total_cost

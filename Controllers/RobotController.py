@@ -18,6 +18,7 @@ class RobotController:
         self.claimed_ice_tiles = {}  # Tracks which ice tiles are claimed by which robot
         self.robot_to_factory = {}  # Tracks which factory each robot is assigned to
         self.occupied_tiles = set()  # Set of currently occupied tiles
+        self.factory_role_state = {}  # Tracks the last assigned role for each factory
 
     def add_unit(self, unit_id, unit, unit_type):
         """
@@ -47,17 +48,38 @@ class RobotController:
 
     def determine_role(self, unit_id, unit):
         """
-        Determines the role of a unit based on its index in the self.units dictionary.
-        Alternates between "Ore Miner" and "Ice Miner".
+        Determines the role of a unit based on the factory that built it.
+        The first robot is an "Ore Miner," the next two are "Ice Miners," and subsequent robots alternate.
         """
-        # Get the index of the unit in the self.units dictionary
-        unit_index = list(self.units.keys()).index(unit_id)
+        # Get the factory assigned to this unit
+        assigned_factory = self.robot_to_factory.get(unit_id, None)
+        if assigned_factory is None:
+            print(f"Warning: Unit {unit_id} has no assigned factory. Defaulting to 'Ore Miner'.", file=sys.stderr)
+            return "Ore Miner"  # Default role if no factory is assigned
 
-        # Alternate roles based on the index
-        if unit_index % 2 == 0:
-            return "Ore Miner"
+        # Initialize the factory's role state if not already present
+        if tuple(assigned_factory) not in self.factory_role_state:
+            self.factory_role_state[tuple(assigned_factory)] = {"count": 0, "last_role": "Ice Miner"}
+
+        # Get the current count of robots assigned by this factory
+        factory_state = self.factory_role_state[tuple(assigned_factory)]
+        robot_count = factory_state["count"]
+
+        # Determine the role based on the count
+        if robot_count == 0:
+            new_role = "Ore Miner"  # First robot is an Ore Miner
+        elif robot_count in [1, 2]:
+            new_role = "Ice Miner"  # Next two robots are Ice Miners
         else:
-            return "Ice Miner"
+            # Alternate roles for subsequent robots
+            last_role = factory_state["last_role"]
+            new_role = "Ore Miner" if last_role == "Ice Miner" else "Ice Miner"
+
+        # Update the factory's role state
+        factory_state["count"] += 1
+        factory_state["last_role"] = new_role
+
+        return new_role
     
     def update_game_state(self, new_game_state):
         """
@@ -126,9 +148,8 @@ Frees claimed tiles for dead robots.
                 elif role == "Ore Miner":
                     actions[unit_id] = self.control_ore_miner(unit_id, unit, ore_tile_locations)
                 else:
-                    actions = None
+                    actions[unit_id] = []
                     print(f"Warning: Unit {unit_id} has no role assigned.", file=sys.stderr)
-
         # Resolve conflicts before returning actions
         actions = self.resolve_conflicts(actions, game_state)
         return actions
