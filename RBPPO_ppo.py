@@ -22,14 +22,9 @@ class PPO:
         # Reload obs and action spaces for post-prep phase
         self.env.reload_spaces()
         
-        print("------------------POST-RELOAD---------------------")
-        print(env.observation_space)
-        print("---------------------------------------")
-        print(env.action_space)
-        
         # Rip these apart into tuples of ints (array of ints) and not dicts
-        self.obs_dim = env.observation_space #.shape[0]
-        self.act_dim = env.action_space #.shape[0]
+        self.obs_dim = self.env.observation_space.shape[0]
+        self.act_dim = self.env.action_space.n
         
         # Init actor and critic networks
         self.actor = FeedForwardNN(self.obs_dim, self.act_dim)

@@ -31,9 +31,9 @@ class Agent():
         game_state = obs_to_game_state(step, self.env_cfg, obs)
         
         # game_state testing file code
-        f = open("game_state.txt", "w")
-        f.write(str(game_state))
-        f.close()
+        #f = open("game_state.txt", "w")
+        #f.write(str(game_state))
+        #f.close()
         
         #self.robot_controller.update_game_state(game_state)  # Update the RobotController with the new game_state
         self.factory_controller.update_game_state(game_state) # Update the FactoryController with the new game_state
@@ -48,11 +48,11 @@ class Agent():
         actions = self.merge_action_queues(factory_actions, robot_actions)
 
         # game_state testing file code kill switch
-        if (step > 6):
-            f_obs = open("obs.txt", "w")
-            f_obs.write(str(obs))
-            f_obs.close()
-            exit()
+        #if (step > 6):
+        #    f_obs = open("obs.txt", "w")
+        #    f_obs.write(str(obs))
+        #    f_obs.close()
+        #    exit()
         
         return actions
 
