@@ -17,7 +17,6 @@ class RobotController:
         self.unit_roles = {}
         self.claimed_ice_tiles = {}  # Tracks which ice tiles are claimed by which robot
         self.robot_to_factory = {}  # Tracks which factory each robot is assigned to
-        self.occupied_tiles = set()  # Set of currently occupied tiles
         self.factory_role_state = {}  # Tracks the last assigned role for each factory
 
     def add_unit(self, unit_id, unit, unit_type):
@@ -135,7 +134,7 @@ Frees claimed tiles for dead robots.
         """
         self.update_game_state(game_state)  # Update the game state
         # Clear and repopulate the occupied tiles set
-        self.occupied_tiles = {tuple(unit.pos) for unit in self.units.values()}
+
 
         ice_tile_locations = self.get_ice_tile_locations(self.game_state)
         ore_tile_locations = self.get_ore_tile_locations(self.game_state)
@@ -178,6 +177,9 @@ Frees claimed tiles for dead robots.
                 else:
                     #print(f"Unit {unit_id} moving to ice tile {closest_ice_tile}", file=sys.stderr)
                     return self.move_to_tile(unit, closest_ice_tile, self.game_state.real_env_steps)
+            else:
+                print(f"Warning: No unclaimed ice tiles available for unit {unit_id}.", file=sys.stderr)
+                return []  # No action if no unclaimed ice tiles are available
 
     def control_ore_miner(self, unit_id, unit, ore_tile_locations):
         # Get the assigned factory for this robot
@@ -204,6 +206,9 @@ Frees claimed tiles for dead robots.
                 else:
                     #print(f"Unit {unit_id} moving to ore tile {closest_ore_tile}", file=sys.stderr)
                     return self.move_to_tile(unit, closest_ore_tile, self.game_state.real_env_steps)
+            else:
+                print(f"Warning: No unclaimed ore tiles available for unit {unit_id}.", file=sys.stderr)
+                return []  # No action if no unclaimed ore tiles are available
 
     
     def resolve_conflicts(self, actions, game_state):
@@ -331,15 +336,22 @@ Frees claimed tiles for dead robots.
         Handles the logic for returning to the factory and transferring resources.
         Marks the factory tile as occupied until the robot moves away.
         """
-        direction = direction_to(unit.pos, assigned_factory)
+        # Get all tiles within the 3x3 factory area
+        factory_tiles = [(assigned_factory[0] + dx, assigned_factory[1] + dy)
+                         for dx in range(-1, 2) for dy in range(-1, 2)]
+
+        # Find the closest tile within the factory
+        closest_factory_tile = min(factory_tiles, key=lambda tile: np.linalg.norm(np.array(tile) - np.array(unit.pos)))
+
+        direction = direction_to(unit.pos, closest_factory_tile)
         current_turn = self.game_state.real_env_steps
 
-        # remove claim from robot
+        # Remove claim from robot
         if tuple(unit.pos) in self.claimed_ice_tiles:
             del self.claimed_ice_tiles[tuple(unit.pos)]
 
-        # If the robot is adjacent to the factory, perform actions
-        if np.array_equal(unit.pos, assigned_factory):
+        # Check if the robot is within the factory area
+        if self.is_within_factory(unit, assigned_factory):
             # Transfer resources to the factory
             if unit.power >= unit.action_queue_cost(self.game_state):
                 actions = [unit.transfer(direction, resource_type, resource_amount, repeat=0)]
@@ -355,8 +367,8 @@ Frees claimed tiles for dead robots.
                 power_to_pickup = int(factory_power * 0.20)
                 return [unit.pickup(4, power_to_pickup, repeat=0, n=1)]
         else:
-            # Move towards the factory
-            return self.move_to_tile(unit, assigned_factory, current_turn)
+            # Move towards the closest factory tile
+            return self.move_to_tile(unit, closest_factory_tile, current_turn)
 
     def move_to_tile(self, unit, target_tile, current_turn):
         """
@@ -369,12 +381,10 @@ Frees claimed tiles for dead robots.
 
             # Check if the unit has enough power to execute the path
             if unit.power >= pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state):
-                # Update the occupied tiles set
-                self.occupied_tiles.add(tuple(target_tile))
                 return pathfinding_result.action_queue  # Return the pathfinding action queue
             else:
                 closest_factory = self.get_closest_factory(unit, self.game_state)
-                if np.array_equal(unit.pos, closest_factory):
+                if self.is_within_factory(unit, closest_factory):
                     factory_power = self.get_closest_factory_unit(unit, self.game_state).power
                     power_to_pickup = int(factory_power * 0.20)
                     return [unit.pickup(4, power_to_pickup, repeat=0, n=1)]
@@ -439,3 +449,23 @@ Frees claimed tiles for dead robots.
             4: 2   # left → right
         }
         return reverse_direction_map[direction]
+    
+    def get_all_unit_positions(self):
+        """
+        Returns a list of all unit positions in the game state.
+        """
+        return [unit.pos for unit in self.game_state.units[self.player].values()]
+    
+    def is_within_factory(self, unit, factory):
+        """
+        Checks if the unit is within the 3x3 area of the given factory.
+        
+        Parameters:
+            unit: The unit to check.
+            factory: The factory to compare against.
+        
+        Returns:
+            True if the unit is within the 3x3 area of the factory, False otherwise.
+        """
+        factory_tiles = [(factory[0] + dx, factory[1] + dy) for dx in range(-1, 2) for dy in range(-1, 2)]
+        return tuple(unit.pos) in factory_tiles
