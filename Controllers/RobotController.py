@@ -227,7 +227,6 @@ Frees claimed tiles for dead robots.
         current_positions = {unit_id: tuple(unit.pos) for unit_id, unit in game_state.units[self.player].items()}
 
         # First pass: Analyze new actions and populate target_positions
-        # print(f"Turn {game_state.real_env_steps} size of actions: {len(actions)}", file=sys.stderr)
         for unit_id, action_list in actions.items():
             try:
                 if len(action_list) > 0:  # Explicitly check if the action list is not empty
@@ -240,7 +239,6 @@ Frees claimed tiles for dead robots.
 
                         # Check if the target position is already occupied
                         if target_pos in current_positions.values():
-                            #print(f"Turn {game_state.real_env_steps}: Robot {unit_id} cannot move to {target_pos} because it is occupied.", file=sys.stderr)
                             resolved_actions[unit_id] = []  # Cancel the movement action
                         else:
                             # Add the robot to the target_positions map
@@ -262,32 +260,28 @@ Frees claimed tiles for dead robots.
                 action = unit.action_queue[0]  # Only consider the first action in the queue
                 if isinstance(action, np.ndarray) and action[0] == 0:  # Check if it's a move action
                     direction = action[1]
-                    #reverse_direction = self.reverse_direction(direction)
                     dx, dy = direction_map[direction]
                     target_pos = (current_pos[0] + dx, current_pos[1] + dy)
 
                     # Check if the target position is already occupied or has a conflict
                     if target_pos in current_positions.values():
-                        #print(f"Turn {game_state.real_env_steps}: Robot {unit_id} cannot move to {target_pos} because it is occupied.", file=sys.stderr)
                         resolved_actions[unit_id] = []
-                        #resolved_actions[unit_id] = [unit.move(reverse_direction)]  # Cancel the movement action
                     elif target_pos in target_positions:
-                        #print(f"Turn {game_state.real_env_steps}: Conflict detected at {target_pos} for robot {unit_id}.", file=sys.stderr)
                         target_positions[target_pos].append(unit_id)
                     else:
-                        # Add the robot to the target_positions map
                         target_positions[target_pos] = [unit_id]
 
         # Resolve conflicts for shared target positions
         for target_pos, unit_ids in target_positions.items():
             if len(unit_ids) > 1:
                 # Conflict detected: Multiple robots want to move to the same tile
-                #print(f"Turn {game_state.real_env_steps}: Conflict detected at {target_pos} for robots {unit_ids}.", file=sys.stderr)
-                # Sort robots by their IDs to prioritize one robot
-                unit_ids.sort(key=lambda uid: int(uid.split('_')[1]))  # Prioritize by robot ID
+                # Sort robots by role (prioritize Ice Miner) and then by ID
+                unit_ids.sort(key=lambda uid: (
+                    0 if self.unit_roles.get(uid) == "Ice Miner" else 1,  # Prioritize Ice Miner
+                    int(uid.split('_')[1])  # Fallback to ID
+                ))
                 for uid in unit_ids[1:]:  # Allow the first robot to proceed, others must wait
-                    resolved_actions[uid] = []  # Cancel the movement action
-                    #print(f"Turn {game_state.real_env_steps}: Robot {uid} is waiting due to conflict at {target_pos}.", file=sys.stderr)
+                    resolved_actions[uid] = []
 
         # Add non-conflicting actions to resolved_actions
         for unit_id, action_list in actions.items():
