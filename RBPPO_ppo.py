@@ -19,10 +19,10 @@ class PPO:
         # Get environment information
         self.env = env
         
-        # Reload obs and action spaces for post-prep phase
-        self.env.reload_spaces()
+        # one-time force convert of observations to hardcoded ndarray - delete later
+        self.one_time_proc = True
         
-        # Rip these apart into tuples of ints (array of ints) and not dicts
+        # Observation space and Action space dimension definitions 
         self.obs_dim = self.env.observation_space.shape[0]
         self.act_dim = self.env.action_space.n
         
@@ -40,8 +40,8 @@ class PPO:
         
     def _init_hyperparameters(self):
         #  Default values for now
-        self.timesteps_per_batch = 4800         # Timesteps per batch
-        self.max_timesteps_per_episode = 1600   # Timesteps per episode    
+        self.timesteps_per_batch = 2000         # Timesteps per batch
+        self.max_timesteps_per_episode = 1000   # Timesteps per episode    
         
         self.n_updates_per_iteration = 5        # Epoch count
         self.clip = 0.2                         # Recommended clip threshold for PPO in PPO paper
@@ -50,7 +50,7 @@ class PPO:
         
         # Optimization hyperparams
         self.max_grad_norm = 0.5                # Gradient clipping value
-        self.num_minibatches = 6                # Minibatch size
+        self.num_minibatches = 5                # Minibatch size
         self.ent_coef = 0                       # Entropy coefficient for Entropy Regularization
         self.target_kl = 0.02                   # KL Divergence threshold
         self.lam = 0.98                         # Lambda parameter for GAE
@@ -198,6 +198,12 @@ class PPO:
             obs, _ = self.env.reset()
             done = False
             
+            print(obs)
+            if (self.one_time_proc == True):
+                obs = torch.from_numpy(np.array([1, 2, 3, 4, 5, 6, 7, 8, 9], dtype=np.float32))
+                print(obs)
+                self.one_time_proc = False
+            
             for ep_t in range(self.max_timesteps_per_episode):
                 ep_dones.append(done)
                 
@@ -208,6 +214,9 @@ class PPO:
                 batch_obs.append(obs)
                 
                 action, log_prob = self.get_action(obs)
+                print("------------------------------")
+                print(action)
+                print("------------------------------")
                 val = self.critic(obs)
                 
                 obs, rew, terminated, truncated, _ = self.env.step(action)
