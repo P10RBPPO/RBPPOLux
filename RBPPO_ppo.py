@@ -10,6 +10,7 @@ from RBPPO_lux_env import LuxCustomEnv
 import gymnasium as gym
 
 from lux.kit import obs_to_game_state, GameState
+from RBPPO_lux_action_parser import parse_actions
 
 class PPO:
     def __init__(self, env):
@@ -198,10 +199,13 @@ class PPO:
             obs, _ = self.env.reset()
             done = False
             
+            # debug code
             print(obs)
+            actual_obs = obs
+            
+            # one_time force convert of obs array- remove later
             if (self.one_time_proc == True):
                 obs = torch.from_numpy(np.array([1, 2, 3, 4, 5, 6, 7, 8, 9], dtype=np.float32))
-                print(obs)
                 self.one_time_proc = False
             
             for ep_t in range(self.max_timesteps_per_episode):
@@ -214,10 +218,13 @@ class PPO:
                 batch_obs.append(obs)
                 
                 action, log_prob = self.get_action(obs)
+                val = self.critic(obs)
+                
                 print("------------------------------")
                 print(action)
                 print("------------------------------")
-                val = self.critic(obs)
+                
+                action = parse_actions(self.env, actual_obs, action)
                 
                 obs, rew, terminated, truncated, _ = self.env.step(action)
                 done = terminated or truncated
@@ -314,6 +321,5 @@ class PPO:
 # PPO Test code
 #env = gym.make('Pendulum-v1')
 env = LuxCustomEnv()
-env.reset()
 model = PPO(env)
 model.learn(10000)
