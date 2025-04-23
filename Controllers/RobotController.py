@@ -389,8 +389,31 @@ Frees claimed tiles for dead robots.
                     power_to_pickup = int(factory_power * 0.20)
                     return [unit.pickup(4, power_to_pickup, repeat=0, n=1)]
                 else:
-                    # Return a recharge action if the unit does not have enough power
-                    return [unit.recharge(x=pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state))]
+                    # Check if the unit is standing on a resource tile (ice or ore)
+                    board = self.game_state.board
+                    if board.ice[unit.pos[0], unit.pos[1]] == 1 or board.ore[unit.pos[0], unit.pos[1]] == 1:
+                        # Get the first move action from the pathfinding result
+                        if len(pathfinding_result.action_queue) > 0:
+                            first_action = pathfinding_result.action_queue[0]
+                            direction = first_action[1]  # Extract the direction from the action
+                            move_deltas = np.array([[0, 0], [0, -1], [1, 0], [0, 1], [-1, 0]])
+                            target_pos = unit.pos + move_deltas[direction]
+                            rubble_at_target = board.rubble[target_pos[0], target_pos[1]]
+                            move_cost = unit.unit_cfg.MOVE_COST + unit.unit_cfg.RUBBLE_MOVEMENT_COST * rubble_at_target
+
+                            # Check if the unit has enough power to move
+                            if unit.power >= move_cost + unit.action_queue_cost(self.game_state):
+                                # Move one step to free the resource tile
+                                return [first_action]
+                            else:
+                                # Recharge to have enough power to move
+                                recharge_amount = move_cost + unit.action_queue_cost(self.game_state)
+                                return [unit.recharge(x=recharge_amount), first_action]
+                    else:
+                        # If not on a resource tile, recharge and append the pathfinding action queue
+                        recharge_amount = pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state)
+                        recharge_action = [unit.recharge(x=recharge_amount)]
+                        return recharge_action + pathfinding_result.action_queue[:19]
 
         # If no pathfinding result is found, return an empty action queue
         #print(f"Turn {current_turn}: No path found for robot {unit.unit_id} to target tile {target_tile}.", file=sys.stderr)
