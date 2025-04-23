@@ -37,6 +37,7 @@ class FactoryController:
         return dict()
     
     def handle_factory_actions(self, player, env_cfg, game_state, actions):
+        self.update_game_state(game_state)
         factories = game_state.factories[player]
         factory_tiles, factory_units = [], []
         current_turn = game_state.real_env_steps  # Get the current turn number

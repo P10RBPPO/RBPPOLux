@@ -34,9 +34,6 @@ class Agent():
         #f = open("game_state.txt", "w")
         #f.write(str(game_state))
         #f.close()
-        
-        #self.robot_controller.update_game_state(game_state)  # Update the RobotController with the new game_state
-        self.factory_controller.update_game_state(game_state) # Update the FactoryController with the new game_state
 
         # Control units using the RobotController
         robot_actions = self.robot_controller.control_units(actions, game_state)
