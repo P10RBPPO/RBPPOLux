@@ -7,18 +7,20 @@ import numpy as np
 import sys
 
 class PathfindingResult:
-    def __init__(self, path, move_cost, action_queue, tile_occupation):
+    def __init__(self, path, move_cost, action_queue):
         self.path = path
         self.total_move_cost = move_cost
         self.action_queue = action_queue
-        self.tile_occupation = tile_occupation  # Dictionary of tile positions and the turns they are occupied
 
     # heuristic for A* search
     # we only care initially if we get closer to the target
     # move cost comes later
     @staticmethod
-    def heuristic(a, b):
-        return abs(a[0] - b[0]) + abs(a[1] - b[1])
+    def heuristic(a, b, unit_type):
+        if unit_type == "HEAVY":
+            return (abs(a[0] - b[0]) + abs(a[1] - b[1])) * 20
+        elif unit_type == "LIGHT":
+            return abs(a[0] - b[0]) + abs(a[1] - b[1])
     
     # A* search algorithm
     # returns a PathfindingResult object
@@ -39,7 +41,7 @@ class PathfindingResult:
         heapq.heappush(open_set, (0, tuple(start)))
         came_from = {}
         g_score = {tuple(start): 0}
-        f_score = {tuple(start): PathfindingResult.heuristic(start, goal)}
+        f_score = {tuple(start): PathfindingResult.heuristic(start, goal, unit.unit_type)}
 
         while open_set:
             _, current = heapq.heappop(open_set)
@@ -47,22 +49,20 @@ class PathfindingResult:
             if current == tuple(goal):
                 path = [current]  # Start with the goal
                 total_move_cost = 0
-                tile_occupation = {}  # Track when each tile is occupied
                 turn = current_turn
 
                 while current in came_from:
                     previous = came_from[current]
                     path.append(previous)
                     total_move_cost += PathfindingResult.move_cost(
-                        game_state, np.array(previous), direction_to(np.array(previous), np.array(current)), unit, include_turn_cost=False
+                        game_state, np.array(previous), PathfindingResult.my_direction_to(np.array(previous), np.array(current)), unit, include_turn_cost=False
                     )
                     turn += 1
-                    tile_occupation[tuple(previous)] = turn  # Mark the tile as occupied at this turn
                     current = previous
 
                 path.reverse()  # Reverse the path to start from the initial position
                 action_queue = PathfindingResult.build_action_queue(path, unit)
-                return PathfindingResult(path, total_move_cost, action_queue, tile_occupation)
+                return PathfindingResult(path, total_move_cost, action_queue)
 
             for direction in directions:
                 neighbor = (current[0] + direction[0], current[1] + direction[1])
@@ -77,7 +77,7 @@ class PathfindingResult:
                 if neighbor not in g_score or tentative_g_score < g_score[neighbor]:
                     came_from[neighbor] = current
                     g_score[neighbor] = tentative_g_score
-                    f_score[neighbor] = tentative_g_score + PathfindingResult.heuristic(neighbor, goal)
+                    f_score[neighbor] = tentative_g_score + PathfindingResult.heuristic(neighbor, goal, unit.unit_type)
                     heapq.heappush(open_set, (f_score[neighbor], neighbor))
 
         print(f"No path found for unit {unit.unit_id} to goal {goal}.", file=sys.stderr)
@@ -91,17 +91,18 @@ class PathfindingResult:
         Calculates the cost of moving from the current position in the given direction.
         If `include_turn_cost` is True, adds a small "turn cost" to prioritize faster paths.
         """
+
         board = game_state.board
-        move_deltas = np.array([[0, 0], [0, -1], [1, 0], [0, 1], [-1, 0]])
-        target_pos = current_pos + move_deltas[direction]
+        #move_deltas = np.array([[0, 0], [0, -1], [1, 0], [0, 1], [-1, 0]])
+        target_pos = current_pos + direction
         rubble_at_target = board.rubble[target_pos[0]][target_pos[1]]
-        
+
         # Base move cost
         move_cost = unit.unit_cfg.MOVE_COST + unit.unit_cfg.RUBBLE_MOVEMENT_COST * rubble_at_target
         
         # Add a small turn cost if specified
         if include_turn_cost:
-            move_cost += 5  # Example turn cost, adjust as needed
+            move_cost += 0  # Example turn cost, adjust as needed
         
         return math.floor(move_cost)
     
@@ -149,3 +150,24 @@ class PathfindingResult:
                 return False  # Tile is invalid if occupied by another unit within 3 tiles
 
         return True
+    
+    @staticmethod
+    def my_direction_to(src, target):
+        """
+        Calculates the direction from src to target as a tuple.
+        Returns one of the directions: (0, 1), (1, 0), (0, -1), (-1, 0).
+        """
+        ds = target - src
+        dx = ds[0]
+        dy = ds[1]
+
+        if dx == 0 and dy < 0:
+            return (0, -1)  # Up
+        elif dx > 0 and dy == 0:
+            return (1, 0)  # Right
+        elif dx == 0 and dy > 0:
+            return (0, 1)  # Down
+        elif dx < 0 and dy == 0:
+            return (-1, 0)  # Left
+        else:
+            raise ValueError(f"Invalid direction from {src} to {target}. Only cardinal directions are supported.")
