@@ -59,7 +59,13 @@ class LuxCustomEnv(gym.Env):
         
         obs, reward, done, truncated, info = self.lux_env.step(action)
         
-        #stats: StatsStateDict = self.lux_env.state.stats[self.agent]
+        print(list(self.lux_env.state.stats.keys()))
+        
+        player = list(self.agents.keys())[0]
+        if player in self.lux_env.state.stats:
+            stats: StatsStateDict = self.lux_env.state.stats[player]
+            print(stats)
+            
         # Rewards should be removed and customized to fit each role here before returning
         return obs, reward, done, truncated, info
 

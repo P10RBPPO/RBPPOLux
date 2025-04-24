@@ -22,7 +22,6 @@ class PPO:
         
         # one-time force convert of observations to hardcoded ndarray - delete later
         self.one_time_proc = True
-        self.second_proc = False
         
         # Observation space and Action space dimension definitions 
         self.obs_dim = self.env.observation_space.shape[0]
@@ -42,7 +41,7 @@ class PPO:
         
     def _init_hyperparameters(self):
         #  Default values for now
-        self.timesteps_per_batch = 2000         # Timesteps per batch
+        self.timesteps_per_batch = 3000         # Timesteps per batch
         self.max_timesteps_per_episode = 1000   # Timesteps per episode    
         
         self.n_updates_per_iteration = 5        # Epoch count
@@ -200,18 +199,12 @@ class PPO:
             obs, _ = self.env.reset()
             done = False
             
-            # debug code
-            print(obs)
-            actual_obs = obs
-            
-            if (self.second_proc == True):
-                print("WE LAPPED WOOOO")
-            
+            # debug code            
             # one_time force convert of obs array- remove later
             if (self.one_time_proc == True):
                 obs = torch.from_numpy(np.array([1, 2, 3, 4, 5, 6, 7, 8, 9], dtype=np.float32))
                 self.one_time_proc = False
-                self.second_proc = True
+            # debug code end
             
             for ep_t in range(self.max_timesteps_per_episode):
                 ep_dones.append(done)
@@ -219,20 +212,30 @@ class PPO:
                 # Increment timesteps for this batch
                 t += 1
                 
+                obs_dict = obs
+                
+                # Parse obs to torch format here
+                # obs = torch.from_numpy(some array, dtype=np.float32)
+                
                 # Collect obs
                 batch_obs.append(obs)
                 
                 action, log_prob = self.get_action(obs)
                 val = self.critic(obs)
                 
+                # debug code
                 print("------------------------------")
                 print(action)
                 print("------------------------------")
+                # debug code end
                 
-                action = parse_actions(self.env, actual_obs, action)
+                action = parse_actions(self.env, obs_dict, action) # Should take 2 types of obs. obs_dict and obs(torch)
                 
                 obs, rew, terminated, truncated, _ = self.env.step(action)
                 done = terminated or truncated
+                
+                print(done)
+                print(obs)
                 
                 # Collect reward, action and log prob
                 ep_rews.append(rew)
