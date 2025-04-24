@@ -387,7 +387,11 @@ Frees claimed tiles for dead robots.
                 if self.is_within_factory(unit, closest_factory):
                     factory_power = self.get_closest_factory_unit(unit, self.game_state).power
                     power_to_pickup = int(factory_power * 0.20)
-                    return [unit.pickup(4, power_to_pickup, repeat=0, n=1)]
+                    if unit.power + power_to_pickup >= pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state):
+                        # If enough power after pickup, return the pathfinding action queue
+                        return [unit.pickup(4, power_to_pickup, repeat=0, n=1)] + pathfinding_result.action_queue[:19]
+                    else:
+                        return [unit.pickup(4, power_to_pickup, repeat=0, n=1)]
                 else:
                     # Check if the unit is standing on a resource tile (ice or ore)
                     board = self.game_state.board
