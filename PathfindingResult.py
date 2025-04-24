@@ -98,7 +98,7 @@ class PathfindingResult:
         rubble_at_target = board.rubble[target_pos[0]][target_pos[1]]
 
         # Base move cost
-        move_cost = unit.unit_cfg.MOVE_COST + unit.unit_cfg.RUBBLE_MOVEMENT_COST * rubble_at_target
+        move_cost = unit.unit_cfg.MOVE_COST + unit.action_queue_cost(game_state) + unit.unit_cfg.RUBBLE_MOVEMENT_COST * rubble_at_target
         
         # Add a small turn cost if specified
         if include_turn_cost:
