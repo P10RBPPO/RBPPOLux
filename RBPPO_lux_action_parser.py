@@ -13,11 +13,14 @@ def parse_actions(custom_env, obs, action):
     factory_controller = FactoryController(None, player)  # Initialize with None game state
     robot_controller = RobotController(None, player)  # Initialize with None game state
 
-    robot_actions = robot_controller.control_units(game_state=game_state, actions=dict())
+    robot_actions = robot_controller.control_units(game_state=game_state)
     
-    factory_actions = factory_controller.handle_factory_actions(player, env_cfg, game_state, actions=dict())
+    factory_actions = factory_controller.handle_factory_actions(player, env_cfg, game_state)
+    
+    combined_actions = {}
+    combined_actions.update(robot_actions)
+    combined_actions.update(factory_actions)
         
-    actions.update(robot_actions)
-    actions.update(factory_actions)
+    actions[player] = combined_actions
         
     return actions

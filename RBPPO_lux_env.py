@@ -17,7 +17,7 @@ class LuxCustomEnv(gym.Env):
         self.agent = {}
 
         self.observation_space = spaces.Box(low=0, high=10, shape=(9,), dtype=np.float32)
-        self.action_space = spaces.Discrete(5)
+        self.action_space = spaces.Discrete(6)
         
         # keep for creating the true obs_space later
         #low = np.array([-10, 0, 0, 0, -1, 0, 0, 0, 0], dtype=np.float32)
@@ -57,11 +57,9 @@ class LuxCustomEnv(gym.Env):
         
         # Turn Tensors into an action before stepping (ONLY RELEVANT FOR ROBOTS!)
         
-        print(action)
-        
         obs, reward, done, truncated, info = self.lux_env.step(action)
         
-        stats: StatsStateDict = self.lux_env.state.stats[self.agent]
+        #stats: StatsStateDict = self.lux_env.state.stats[self.agent]
         # Rewards should be removed and customized to fit each role here before returning
         return obs, reward, done, truncated, info
 

@@ -22,6 +22,7 @@ class PPO:
         
         # one-time force convert of observations to hardcoded ndarray - delete later
         self.one_time_proc = True
+        self.second_proc = False
         
         # Observation space and Action space dimension definitions 
         self.obs_dim = self.env.observation_space.shape[0]
@@ -203,10 +204,14 @@ class PPO:
             print(obs)
             actual_obs = obs
             
+            if (self.second_proc == True):
+                print("WE LAPPED WOOOO")
+            
             # one_time force convert of obs array- remove later
             if (self.one_time_proc == True):
                 obs = torch.from_numpy(np.array([1, 2, 3, 4, 5, 6, 7, 8, 9], dtype=np.float32))
                 self.one_time_proc = False
+                self.second_proc = True
             
             for ep_t in range(self.max_timesteps_per_episode):
                 ep_dones.append(done)
