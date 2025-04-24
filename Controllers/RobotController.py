@@ -128,10 +128,11 @@ Frees claimed tiles for dead robots.
                 # Add new units
                 self.add_unit(unit_id, unit, unit.unit_type)
 
-    def control_units(self, actions, game_state):
+    def control_units(self, game_state):
         """
         Controls all units and updates the actions dictionary.
         """
+        actions = dict()
         self.update_game_state(game_state)  # Update the game state
         # Clear and repopulate the occupied tiles set
 

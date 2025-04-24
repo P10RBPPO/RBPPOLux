@@ -36,7 +36,8 @@ class FactoryController:
             return dict(spawn=spawn_loc, metal=150, water=150)
         return dict()
     
-    def handle_factory_actions(self, player, env_cfg, game_state, actions):
+    def handle_factory_actions(self, player, env_cfg, game_state):
+        actions = dict()
         self.update_game_state(game_state)
         factories = game_state.factories[player]
         factory_tiles, factory_units = [], []
