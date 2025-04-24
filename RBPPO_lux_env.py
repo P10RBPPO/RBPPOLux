@@ -3,7 +3,6 @@ import numpy as np
 from gymnasium import spaces
 from luxai_s2.env import LuxAI_S2
 from luxai_s2.state import StatsStateDict
-#from lux.kit import obs_to_game_state
 from agent import Agent
 
 class LuxCustomEnv(gym.Env):
@@ -11,11 +10,11 @@ class LuxCustomEnv(gym.Env):
         super(LuxCustomEnv, self).__init__()
         
         # LuxAI_S2 env init
-        self.env = LuxAI_S2(MIN_FACTORIES=1, MAX_FACTORIES=1)
-        self.env.reset()
+        self.lux_env = LuxAI_S2(MIN_FACTORIES=1, MAX_FACTORIES=1)
+        self.lux_env.reset()
         
-        # Create an Agent instance for bidding & factory placement
-        self.agent = Agent("player_0", self.env.env_cfg)
+        self.env_cfg = self.lux_env.env_cfg
+        self.agent = {}
 
         self.observation_space = spaces.Box(low=0, high=10, shape=(9,), dtype=np.float32)
         self.action_space = spaces.Discrete(5)
@@ -29,40 +28,47 @@ class LuxCustomEnv(gym.Env):
         
     def reset(self, **kwargs):
         """Reset function handling bidding & factory placement."""
-        obs, _ = self.env.reset(**kwargs)
+        obs, _ = self.lux_env.reset(**kwargs)
+        
+        self.agents = {player: Agent(player, self.env_cfg) for player in self.lux_env.agents}
+        
         # Call 'early_setup' to handle bidding and factory placement
-        while self.env.state.real_env_steps < 1:
-            step = self.env.state.env_steps
-            action = {agent: self.agent.early_setup(step, obs[agent]) for agent in self.env.agents}
-            obs, _, _, _, _ = self.env.step(action)
+        while self.lux_env.state.real_env_steps < 0:
+            action = dict()
+            for agent in self.lux_env.agents:
+                step = self.lux_env.state.env_steps
+                single_agent_action = self.agents[agent].early_setup(step, obs[agent])
+                action[agent] = single_agent_action
+                #action = {agent: self.agent.early_setup(step, obs[agent]) for agent in self.lux_env.agents}
+            obs, _, _, _, _ = self.lux_env.step(action)
         self.prev_obs = obs
-        return obs, {}        
+        return obs[list(self.agents.keys())[0]], {}        
     
     
     def step(self, action):
         
         # Fill enemy factories to survive 1000 turns
-        opp_agent = self.agent.opp_player
-        opp_factories = self.env.state.factories[opp_agent]
+        opp_agent = list(self.agents.keys())[1]
+        opp_factories = self.lux_env.state.factories[opp_agent]
         
         for factory_key in opp_factories.keys():
             factory = opp_factories[factory_key]
             factory.cargo.water = 1000
         
-        # Turn Tensors into an action before stepping
+        # Turn Tensors into an action before stepping (ONLY RELEVANT FOR ROBOTS!)
         
-        obs, reward, done, truncated, info = self.env.step(action)
-        print(obs)
+        print(action)
         
+        obs, reward, done, truncated, info = self.lux_env.step(action)
         
-        stats: StatsStateDict = self.env.state.stats[self.agent]
+        stats: StatsStateDict = self.lux_env.state.stats[self.agent]
         # Rewards should be removed and customized to fit each role here before returning
         return obs, reward, done, truncated, info
 
 
     def render(self, mode='human'):
-        return self.env.render(mode)
+        return self.lux_env.render(mode)
 
 
     def close(self):
-        self.env.close()
+        self.lux_env.close()
