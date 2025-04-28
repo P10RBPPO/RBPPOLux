@@ -73,9 +73,9 @@ class RobotController:
         elif robot_count == 3:
             new_role = "Rubble Cleaner"  # Fourth robot is an Ore Miner
         elif robot_count == 4:
-            new_role = "Rubble Cleaner"  # Fifth robot is a Rubble Cleaner
+            new_role = "Ore Miner"  # Fifth robot is a Rubble Cleaner
         elif robot_count == 5:
-            new_role = "Ore Miner"
+            new_role = "Rubble Cleaner"  # Sixth robot is a Rubble Cleaner
         else:
             # Alternate roles for subsequent robots
             last_role = factory_state["last_role"]
@@ -236,7 +236,7 @@ class RobotController:
             return []
 
         # If the robot has less than 100 power, return to the factory to pick up power
-        if unit.power < 100:
+        if unit.power < 150:
             return self.return_to_factory(unit_id, unit, assigned_factory)
 
         # Get all tiles within the 3x3 factory area
@@ -501,7 +501,7 @@ class RobotController:
                         return recharge_action + pathfinding_result.action_queue[:19]
 
         # If no pathfinding result is found, return an empty action queue
-        #print(f"Turn {current_turn}: No path found for robot {unit.unit_id} to target tile {target_tile}.", file=sys.stderr)
+        print(f"Turn {current_turn}: No path found for robot {unit.unit_id} to target tile {target_tile}.", file=sys.stderr)
         return []
 
     def get_factories(self, game_state):
