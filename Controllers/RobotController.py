@@ -73,7 +73,9 @@ class RobotController:
         elif robot_count == 3:
             new_role = "Rubble Cleaner"  # Fourth robot is an Ore Miner
         elif robot_count == 4:
-            new_role = "Ore Miner"  # Fifth robot is a Rubble Cleaner
+            new_role = "Rubble Cleaner"  # Fifth robot is a Rubble Cleaner
+        elif robot_count == 5:
+            new_role = "Ore Miner"
         else:
             # Alternate roles for subsequent robots
             last_role = factory_state["last_role"]
@@ -244,6 +246,13 @@ class RobotController:
         # Exclude all tiles within the 3x3 factory area
         rubble_tiles = [tile for tile in rubble_tile_locations if tuple(tile) not in factory_tiles]
 
+        # Check if the robot has already claimed a rubble tile
+        claimed_tile = None
+        for tile, claimant in self.claimed_ice_tiles.items():
+            if claimant == unit_id:
+                claimed_tile = np.array(tile)
+                break
+
         # If the robot is already on a rubble tile, dig it
         if np.any([np.all(unit.pos == tile) for tile in rubble_tiles]):
             if unit.power >= unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state):
@@ -251,9 +260,18 @@ class RobotController:
             else:
                 return [unit.recharge(x=unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state))]
 
-        # If there are rubble tiles to clear, move to the closest one
+        # If there are rubble tiles to clear, find the closest one
         if rubble_tiles:
             closest_rubble_tile = min(rubble_tiles, key=lambda tile: np.linalg.norm(np.array(tile) - unit.pos))
+
+            # If the robot is switching to a new rubble tile, clear the previous claim
+            if claimed_tile is not None and not np.array_equal(claimed_tile, closest_rubble_tile):
+                del self.claimed_ice_tiles[tuple(claimed_tile)]
+
+            # Claim the new rubble tile
+            self.claimed_ice_tiles[tuple(closest_rubble_tile)] = unit_id
+
+            # Move to the closest rubble tile
             return self.move_to_tile(unit, closest_rubble_tile, self.game_state.real_env_steps)
 
         # If no rubble tiles are left, idle
