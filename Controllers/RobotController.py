@@ -71,9 +71,9 @@ class RobotController:
         elif robot_count in [1, 2]:
             new_role = "Ice Miner"  # Next two robots are Ice Miners
         elif robot_count == 3:
-            new_role = "Ore Miner"  # Fourth robot is an Ore Miner
+            new_role = "Rubble Cleaner"  # Fourth robot is an Ore Miner
         elif robot_count == 4:
-            new_role = "Rubble Cleaner"  # Fifth robot is a Rubble Cleaner
+            new_role = "Ore Miner"  # Fifth robot is a Rubble Cleaner
         else:
             # Alternate roles for subsequent robots
             last_role = factory_state["last_role"]
@@ -389,8 +389,23 @@ class RobotController:
         factory_tiles = [(assigned_factory[0] + dx, assigned_factory[1] + dy)
                          for dx in range(-1, 2) for dy in range(-1, 2)]
 
-        # Find the closest tile within the factory
-        closest_factory_tile = min(factory_tiles, key=lambda tile: np.linalg.norm(np.array(tile) - np.array(unit.pos)))
+        # Get all unit positions to check for occupied tiles
+        occupied_positions = {tuple(u.pos) for u in self.game_state.units[self.player].values()}
+
+        # Filter out positions that are at a distance of 2 or more from the unit
+        occupied_positions = {pos for pos in occupied_positions if np.linalg.norm(np.array(pos) - np.array(unit.pos)) < 2}
+
+        # Find the closest unoccupied factory tile
+        unoccupied_factory_tiles = [
+            tile for tile in factory_tiles
+            if tuple(tile) not in occupied_positions
+        ]
+
+        if not unoccupied_factory_tiles:
+            print(f"Warning: No unoccupied factory tiles within range for unit {unit_id}.", file=sys.stderr)
+            return []  # No action if no unoccupied tiles are available
+
+        closest_factory_tile = min(unoccupied_factory_tiles, key=lambda tile: np.linalg.norm(np.array(tile) - np.array(unit.pos)))
 
         direction = direction_to(unit.pos, closest_factory_tile)
         current_turn = self.game_state.real_env_steps

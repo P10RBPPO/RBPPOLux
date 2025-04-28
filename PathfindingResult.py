@@ -54,13 +54,18 @@ class PathfindingResult:
                 while current in came_from:
                     previous = came_from[current]
                     path.append(previous)
-                    total_move_cost += PathfindingResult.move_cost(
-                        game_state, np.array(previous), PathfindingResult.my_direction_to(np.array(previous), np.array(current)), unit, include_turn_cost=False
-                    )
-                    turn += 1
                     current = previous
 
                 path.reverse()  # Reverse the path to start from the initial position
+
+                # Calculate the total move cost after reversing the path
+                for i in range(len(path) - 1):
+                    # Calculate the direction from the current step to the next step
+                    direction = PathfindingResult.my_direction_to(np.array(path[i]), np.array(path[i + 1]))
+                    # Add the move cost for this step
+                    step_cost = PathfindingResult.move_cost(game_state, np.array(path[i]), direction, unit, include_turn_cost=False)
+                    total_move_cost += step_cost
+
                 action_queue = PathfindingResult.build_action_queue(path, unit)
                 return PathfindingResult(path, total_move_cost, action_queue)
 
@@ -99,7 +104,7 @@ class PathfindingResult:
 
         # Base move cost
         move_cost = unit.unit_cfg.MOVE_COST + unit.action_queue_cost(game_state) + unit.unit_cfg.RUBBLE_MOVEMENT_COST * rubble_at_target
-        
+
         # Add a small turn cost if specified
         if include_turn_cost:
             move_cost += 0  # Example turn cost, adjust as needed
