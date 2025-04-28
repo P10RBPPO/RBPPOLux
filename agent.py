@@ -26,8 +26,6 @@ class Agent():
             return self.factory_controller.place_factory(self.player, step, self.env_cfg, obs)
 
     def act(self, step: int, obs, remainingOverageTime: int = 60):
-        actions = dict()
-
         game_state = obs_to_game_state(step, self.env_cfg, obs)
 
         # Control units using the RobotController
@@ -37,6 +35,7 @@ class Agent():
         factory_actions = self.factory_controller.handle_factory_actions(self.player, self.env_cfg, game_state)
         
         # Merge the two action queues
+        actions = dict()
         actions = self.merge_action_queues(factory_actions, robot_actions)
         
         return actions

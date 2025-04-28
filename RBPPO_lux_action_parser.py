@@ -8,7 +8,12 @@ def parse_actions(custom_env, obs, action):
     player = "player_0"
     env_cfg = custom_env.env_cfg
     
+    print(obs)
+    
+    # This shit expects obs not wrapped in a player element
     game_state = obs_to_game_state(custom_env.lux_env.state.env_steps, env_cfg, obs)
+    
+    print(obs)
     
     factory_controller = FactoryController(None, player)  # Initialize with None game state
     robot_controller = RobotController(None, player)  # Initialize with None game state

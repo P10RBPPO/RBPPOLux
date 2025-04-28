@@ -39,11 +39,11 @@ class LuxCustomEnv(gym.Env):
                 step = self.lux_env.state.env_steps
                 single_agent_action = self.agents[agent].early_setup(step, obs[agent])
                 action[agent] = single_agent_action
-                #action = {agent: self.agent.early_setup(step, obs[agent]) for agent in self.lux_env.agents}
             obs, _, _, _, _ = self.lux_env.step(action)
         self.prev_obs = obs
-        return obs[list(self.agents.keys())[0]], {}        
-    
+        return obs, {}
+        #return obs[list(self.agents.keys())[0]], {}        
+        # move line above to when game_state is created
     
     def step(self, action):
         
@@ -55,16 +55,13 @@ class LuxCustomEnv(gym.Env):
             factory = opp_factories[factory_key]
             factory.cargo.water = 1000
         
-        # Turn Tensors into an action before stepping (ONLY RELEVANT FOR ROBOTS!)
-        
         obs, reward, done, truncated, info = self.lux_env.step(action)
         
-        print(list(self.lux_env.state.stats.keys()))
-        
-        player = list(self.agents.keys())[0]
-        if player in self.lux_env.state.stats:
-            stats: StatsStateDict = self.lux_env.state.stats[player]
-            print(stats)
+        # Collect metric stats for customized rewards
+        # player = list(self.agents.keys())[0]
+        # if player in self.lux_env.state.stats:
+        #     stats: StatsStateDict = self.lux_env.state.stats[player]
+        #     print(stats)
             
         # Rewards should be removed and customized to fit each role here before returning
         return obs, reward, done, truncated, info

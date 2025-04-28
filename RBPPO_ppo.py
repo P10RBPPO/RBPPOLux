@@ -1,9 +1,11 @@
 import torch
 import numpy as np
+import copy
 
 from torch import nn
 from torch.distributions import MultivariateNormal
 from torch.optim import Adam
+from RBPPO_lux_obs_parser import torch_obs_parser
 from RBPPO_network import FeedForwardNN
 
 from RBPPO_lux_env import LuxCustomEnv
@@ -21,7 +23,8 @@ class PPO:
         self.env = env
         
         # one-time force convert of observations to hardcoded ndarray - delete later
-        self.one_time_proc = True
+        self.first_iteration = True
+        self.second_iteration = False
         
         # Observation space and Action space dimension definitions 
         self.obs_dim = self.env.observation_space.shape[0]
@@ -199,23 +202,30 @@ class PPO:
             obs, _ = self.env.reset()
             done = False
             
-            # debug code            
-            # one_time force convert of obs array- remove later
-            if (self.one_time_proc == True):
-                obs = torch.from_numpy(np.array([1, 2, 3, 4, 5, 6, 7, 8, 9], dtype=np.float32))
-                self.one_time_proc = False
-            # debug code end
-            
             for ep_t in range(self.max_timesteps_per_episode):
                 ep_dones.append(done)
                 
                 # Increment timesteps for this batch
                 t += 1
                 
-                obs_dict = obs
+                if (self.first_iteration == True):
+                    obs_dict = copy.deepcopy(obs)
+                
+                # debug code
+                # one_time force convert of obs array- remove later
+                if (self.second_iteration == True):
+                    obs = torch.from_numpy(np.array([1, 2, 3, 4, 5, 6, 7, 8, 9], dtype=np.float32))
+                    self.second_iteration = False
+                    
+                if (self.first_iteration == True):
+                    obs = torch.from_numpy(np.array([1, 2, 3, 4, 5, 6, 7, 8, 9], dtype=np.float32))
+                    self.second_iteration = True
+                    self.first_iteration = False
+                # debug code end
                 
                 # Parse obs to torch format here
-                # obs = torch.from_numpy(some array, dtype=np.float32)
+                torch_obs_parser(obs_dict)
+                # obs = torch_obs_parser(obs)
                 
                 # Collect obs
                 batch_obs.append(obs)
@@ -230,12 +240,13 @@ class PPO:
                 # debug code end
                 
                 action = parse_actions(self.env, obs_dict, action) # Should take 2 types of obs. obs_dict and obs(torch)
+                # Turn Tensors into an action before stepping (ONLY RELEVANT FOR ROBOTS!)
                 
                 obs, rew, terminated, truncated, _ = self.env.step(action)
                 done = terminated or truncated
                 
-                print(done)
-                print(obs)
+                # Store new observation dict for conversion on next loop
+                obs_dict = copy.deepcopy(obs)
                 
                 # Collect reward, action and log prob
                 ep_rews.append(rew)
