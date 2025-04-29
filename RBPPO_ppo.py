@@ -202,29 +202,30 @@ class PPO:
             obs, _ = self.env.reset()
             done = False
             
+            obs_dict = copy.deepcopy(obs)
+            
             for ep_t in range(self.max_timesteps_per_episode):
                 ep_dones.append(done)
                 
                 # Increment timesteps for this batch
                 t += 1
                 
-                if (self.first_iteration == True):
-                    obs_dict = copy.deepcopy(obs)
-                
                 # debug code
                 # one_time force convert of obs array- remove later
                 if (self.second_iteration == True):
                     obs = torch.from_numpy(np.array([1, 2, 3, 4, 5, 6, 7, 8, 9], dtype=np.float32))
                     self.second_iteration = False
+                    print("ROUND 2")
                     
                 if (self.first_iteration == True):
                     obs = torch.from_numpy(np.array([1, 2, 3, 4, 5, 6, 7, 8, 9], dtype=np.float32))
                     self.second_iteration = True
                     self.first_iteration = False
+                    print("ROUND 1")
                 # debug code end
                 
                 # Parse obs to torch format here
-                torch_obs_parser(obs_dict)
+                torch_obs_parser(obs_dict, self.env)
                 # obs = torch_obs_parser(obs)
                 
                 # Collect obs
@@ -234,9 +235,9 @@ class PPO:
                 val = self.critic(obs)
                 
                 # debug code
-                print("------------------------------")
+                print("-------------action-----------------")
                 print(action)
-                print("------------------------------")
+                print("-------------action-----------------")
                 # debug code end
                 
                 action = parse_actions(self.env, obs_dict, action) # Should take 2 types of obs. obs_dict and obs(torch)
@@ -255,7 +256,7 @@ class PPO:
                 batch_log_probs.append(log_prob)
                 
                 # If episode is done, break
-                if done:
+                if done["player_0"]:
                     break
                 
             # Collect episodic length and rewards

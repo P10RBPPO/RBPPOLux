@@ -42,8 +42,6 @@ class LuxCustomEnv(gym.Env):
             obs, _, _, _, _ = self.lux_env.step(action)
         self.prev_obs = obs
         return obs, {}
-        #return obs[list(self.agents.keys())[0]], {}        
-        # move line above to when game_state is created
     
     def step(self, action):
         
