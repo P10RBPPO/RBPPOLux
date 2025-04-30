@@ -29,8 +29,7 @@ class RobotController:
         # Automatically assign the robot to the closest factory
         factory_tiles, _ = self.get_factories(self.game_state)
         if len(factory_tiles) > 0:
-            factory_distances = np.linalg.norm(factory_tiles - unit.pos, axis=1)
-            closest_factory_tile = factory_tiles[np.argmin(factory_distances)]
+            closest_factory_tile = self.get_closest_factory(unit, self.game_state)
             self.assign_factory(unit_id, closest_factory_tile)
 
         # Assign a role using the determine_role method
@@ -117,8 +116,7 @@ class RobotController:
                 # The assigned factory is dead, reassign to the closest factory
                 factory_tiles, _ = self.get_factories(new_game_state)
                 if len(factory_tiles) > 0:
-                    factory_distances = np.linalg.norm(factory_tiles - self.units[unit_id].pos, axis=1)
-                    closest_factory_tile = factory_tiles[np.argmin(factory_distances)]
+                    closest_factory_tile = self.get_closest_factory(self.units[unit_id], new_game_state)
                     self.assign_factory(unit_id, closest_factory_tile)
                     print(f"Reassigned robot {unit_id} to new factory at {closest_factory_tile}", file=sys.stderr)
                 else:
@@ -262,7 +260,7 @@ class RobotController:
 
         # If there are rubble tiles to clear, find the closest one
         if rubble_tiles:
-            closest_rubble_tile = min(rubble_tiles, key=lambda tile: np.linalg.norm(np.array(tile) - unit.pos))
+            closest_rubble_tile = min(rubble_tiles, key=lambda tile: np.mean((np.array(tile) - unit.pos) ** 2))
 
             # If the robot is switching to a new rubble tile, clear the previous claim
             if claimed_tile is not None and not np.array_equal(claimed_tile, closest_rubble_tile):
@@ -383,7 +381,7 @@ class RobotController:
         if len(unclaimed_tiles) > 0:
             # Prioritize tiles based on distance and robot ID
             unclaimed_tiles = sorted(unclaimed_tiles, key=lambda tile: (
-                np.linalg.norm(tile - unit.pos),  # Distance to the tile
+                np.mean((tile - unit.pos) ** 2),  # Distance to the tile
                 int(unit_id.split('_')[1])       # Robot ID as a tiebreaker
             ))
             for tile in unclaimed_tiles:
@@ -410,8 +408,8 @@ class RobotController:
         # Get all unit positions to check for occupied tiles
         occupied_positions = {tuple(u.pos) for u in self.game_state.units[self.player].values()}
 
-        # Filter out positions that are at a distance of 2 or more from the unit
-        occupied_positions = {pos for pos in occupied_positions if np.linalg.norm(np.array(pos) - np.array(unit.pos)) < 2}
+        # Filter out positions that are at a Manhattan distance of 2 or more from the unit
+        occupied_positions = {pos for pos in occupied_positions if abs(pos[0] - unit.pos[0]) + abs(pos[1] - unit.pos[1]) < 2}
 
         # Find the closest unoccupied factory tile
         unoccupied_factory_tiles = [
@@ -422,8 +420,7 @@ class RobotController:
         if not unoccupied_factory_tiles:
             print(f"Warning: No unoccupied factory tiles within range for unit {unit_id}.", file=sys.stderr)
             return []  # No action if no unoccupied tiles are available
-
-        closest_factory_tile = min(unoccupied_factory_tiles, key=lambda tile: np.linalg.norm(np.array(tile) - np.array(unit.pos)))
+        closest_factory_tile = min(unoccupied_factory_tiles, key=lambda tile: np.mean((tile - unit.pos) ** 2))
 
         direction = direction_to(unit.pos, closest_factory_tile)
         current_turn = self.game_state.real_env_steps
@@ -501,7 +498,7 @@ class RobotController:
                         return recharge_action + pathfinding_result.action_queue[:19]
 
         # If no pathfinding result is found, return an empty action queue
-        print(f"Turn {current_turn}: No path found for robot {unit.unit_id} to target tile {target_tile}.", file=sys.stderr)
+        #print(f"Turn {current_turn}: No path found for robot {unit.unit_id} to target tile {target_tile}.", file=sys.stderr)
         return []
 
     def get_factories(self, game_state):
@@ -528,7 +525,6 @@ class RobotController:
     def get_closest_factory_unit(self, unit, game_state):
         factory_tiles, factory_units = self.get_factories(game_state)
         factory_distances = np.mean((factory_tiles - unit.pos) ** 2, 1)
-        closest_factory_tile = factory_tiles[np.argmin(factory_distances)]
         return factory_units[np.argmin(factory_distances)]
     
     def get_closest_factory(self, unit, game_state):
