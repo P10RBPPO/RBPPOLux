@@ -1,6 +1,7 @@
 import numpy as np
+import torch
 
-def torch_obs_parser(obs, custom_env):
+def obs_parser(obs, custom_env):
     agent = "player_0"
     env_cfg = custom_env.env_cfg
     player_obs = obs[agent]
@@ -15,7 +16,7 @@ def torch_obs_parser(obs, custom_env):
     
     # Observation space shape
     obs_vec = np.zeros(
-        12,
+        13,
     )
     
     # Factories
@@ -78,5 +79,4 @@ def torch_obs_parser(obs, custom_env):
         )
         break
     
-    # convert to tensor before returning here
-    print(obs_vec)
+    return obs_vec

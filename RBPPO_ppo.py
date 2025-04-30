@@ -5,14 +5,14 @@ import copy
 from torch import nn
 from torch.distributions import MultivariateNormal
 from torch.optim import Adam
-from RBPPO_lux_obs_parser import torch_obs_parser
+from RBPPO_lux_obs_parser import obs_parser
 from RBPPO_network import FeedForwardNN
 
 from RBPPO_lux_env import LuxCustomEnv
 import gymnasium as gym
 
 from lux.kit import obs_to_game_state, GameState
-from RBPPO_lux_action_parser import parse_actions
+from RBPPO_lux_action_parser import parse_actions, parse_network_action
 
 class PPO:
     def __init__(self, env):
@@ -21,10 +21,6 @@ class PPO:
         
         # Get environment information
         self.env = env
-        
-        # one-time force convert of observations to hardcoded ndarray - delete later
-        self.first_iteration = True
-        self.second_iteration = False
         
         # Observation space and Action space dimension definitions 
         self.obs_dim = self.env.observation_space.shape[0]
@@ -44,7 +40,7 @@ class PPO:
         
     def _init_hyperparameters(self):
         #  Default values for now
-        self.timesteps_per_batch = 3000         # Timesteps per batch
+        self.timesteps_per_batch = 1000         # Timesteps per batch
         self.max_timesteps_per_episode = 1000   # Timesteps per episode    
         
         self.n_updates_per_iteration = 5        # Epoch count
@@ -209,41 +205,24 @@ class PPO:
                 
                 # Increment timesteps for this batch
                 t += 1
-                
-                # debug code
-                # one_time force convert of obs array- remove later
-                if (self.second_iteration == True):
-                    obs = torch.from_numpy(np.array([1, 2, 3, 4, 5, 6, 7, 8, 9], dtype=np.float32))
-                    self.second_iteration = False
-                    print("ROUND 2")
-                    
-                if (self.first_iteration == True):
-                    obs = torch.from_numpy(np.array([1, 2, 3, 4, 5, 6, 7, 8, 9], dtype=np.float32))
-                    self.second_iteration = True
-                    self.first_iteration = False
-                    print("ROUND 1")
-                # debug code end
-                
-                # Parse obs to torch format here
-                torch_obs_parser(obs_dict, self.env)
-                # obs = torch_obs_parser(obs)
+                                
+                # Parse obs to numpy format
+                obs = obs_parser(obs_dict, self.env)
                 
                 # Collect obs
                 batch_obs.append(obs)
                 
+                # Convert numpy obs to torch tensor
+                obs = torch.tensor(obs, dtype=torch.float)
+                
+                # Get action from Multivariate Normal Distribution matrix
                 action, log_prob = self.get_action(obs)
                 val = self.critic(obs)
                 
-                # debug code
-                print("-------------action-----------------")
-                print(action)
-                print("-------------action-----------------")
-                # debug code end
+                # Create action dict to pass into Lux and return tensor for chosen action for PPO evaluation
+                lux_action_dict, action = parse_actions(self.env, obs_dict, action) 
                 
-                action = parse_actions(self.env, obs_dict, action) # Should take 2 types of obs. obs_dict and obs(torch)
-                # Turn Tensors into an action before stepping (ONLY RELEVANT FOR ROBOTS!)
-                
-                obs, rew, terminated, truncated, _ = self.env.step(action)
+                obs, rew, terminated, truncated, _ = self.env.step(lux_action_dict)
                 done = terminated or truncated
                 
                 # Store new observation dict for conversion on next loop
@@ -342,4 +321,4 @@ class PPO:
 #env = gym.make('Pendulum-v1')
 env = LuxCustomEnv()
 model = PPO(env)
-model.learn(10000)
+model.learn(2000)

@@ -16,15 +16,8 @@ class LuxCustomEnv(gym.Env):
         self.env_cfg = self.lux_env.env_cfg
         self.agent = {}
 
-        self.observation_space = spaces.Box(low=0, high=10, shape=(9,), dtype=np.float32)
+        self.observation_space = spaces.Box(low=-999, high=999, shape=(13,), dtype=np.float32)
         self.action_space = spaces.Discrete(6)
-        
-        # keep for creating the true obs_space later
-        #low = np.array([-10, 0, 0, 0, -1, 0, 0, 0, 0], dtype=np.float32)
-        #high = np.array([10, 5, 5, 5, 1, 10, 10, 10, 10], dtype=np.float32)
-
-        #self.observation_space = spaces.Box(low=low, high=high, dtype=np.float32)
-
         
     def reset(self, **kwargs):
         """Reset function handling bidding & factory placement."""
