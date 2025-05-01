@@ -12,7 +12,7 @@ from RBPPO_lux_env import LuxCustomEnv
 import gymnasium as gym
 
 from lux.kit import obs_to_game_state, GameState
-from RBPPO_lux_action_parser import parse_actions, parse_network_action
+from RBPPO_lux_action_parser import parse_actions
 
 class PPO:
     def __init__(self, env):
