@@ -25,7 +25,7 @@ class PathfindingResult:
     # A* search algorithm
     # returns a PathfindingResult object
     @staticmethod
-    def astar_search(unit, start, goal, game_state, current_turn):
+    def astar_search(unit, start, goal, game_state):
         """
         A* search algorithm to find the shortest path from start to goal.
         Returns a PathfindingResult object or None if no path is found.
@@ -49,7 +49,6 @@ class PathfindingResult:
             if current == tuple(goal):
                 path = [current]  # Start with the goal
                 total_move_cost = 0
-                turn = current_turn
 
                 while current in came_from:
                     previous = came_from[current]

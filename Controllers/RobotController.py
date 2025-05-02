@@ -176,7 +176,7 @@ class RobotController:
             return self.return_to_factory(unit_id, unit, assigned_factory, resource_type=0, resource_amount=unit.cargo.ice)
         # If the robot is not carrying ice, go to the closest unclaimed ice tile
         elif unit.cargo.ice < 60:
-            closest_ice_tile = self.claim_tile(unit_id, unit, ice_tile_locations, self.claimed_tiles, self.game_state.real_env_steps)
+            closest_ice_tile = self.claim_tile(unit_id, unit, ice_tile_locations, self.claimed_tiles)
             if closest_ice_tile is not None:
                 if np.all(closest_ice_tile == unit.pos):  # If the robot is already on the ice tile
                     if unit.power >= unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state):
@@ -184,7 +184,7 @@ class RobotController:
                     else:
                         return [unit.recharge(x=unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state))]
                 else:
-                    return self.move_to_tile(unit, closest_ice_tile, self.game_state.real_env_steps)
+                    return self.move_to_tile(unit, closest_ice_tile)
             else:
                 print(f"Warning: No unclaimed ice tiles available for unit {unit_id}.", file=sys.stderr)
                 return []  # No action if no unclaimed ice tiles are available
@@ -203,7 +203,7 @@ class RobotController:
             return self.return_to_factory(unit_id, unit, assigned_factory, resource_type=1, resource_amount=unit.cargo.ore)
         # If the robot is not carrying ore, go to the closest unclaimed ore tile
         elif unit.cargo.ore < 60:
-            closest_ore_tile = self.claim_tile(unit_id, unit, ore_tile_locations, self.claimed_tiles, self.game_state.real_env_steps)
+            closest_ore_tile = self.claim_tile(unit_id, unit, ore_tile_locations, self.claimed_tiles)
             if closest_ore_tile is not None:
                 if np.all(closest_ore_tile == unit.pos):  # If the robot is already on the ore tile
                     if unit.power >= unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state):
@@ -211,7 +211,7 @@ class RobotController:
                     else:
                         return [unit.recharge(x=unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state))]
                 else:
-                    return self.move_to_tile(unit, closest_ore_tile, self.game_state.real_env_steps)
+                    return self.move_to_tile(unit, closest_ore_tile)
             else:
                 print(f"Warning: No unclaimed ore tiles available for unit {unit_id}.", file=sys.stderr)
                 return []  # No action if no unclaimed ore tiles are available
@@ -240,7 +240,7 @@ class RobotController:
         rubble_tiles = [tile for tile in rubble_tile_locations if tuple(tile) not in factory_tiles]
 
         # Claim the closest rubble tile
-        closest_rubble_tile = self.claim_tile(unit_id, unit, rubble_tiles, self.claimed_tiles, self.game_state.real_env_steps)
+        closest_rubble_tile = self.claim_tile(unit_id, unit, rubble_tiles, self.claimed_tiles)
         if closest_rubble_tile is not None:
             if np.all(closest_rubble_tile == unit.pos):  # If the robot is already on the rubble tile
                 if unit.power >= unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state):
@@ -248,7 +248,7 @@ class RobotController:
                 else:
                     return [unit.recharge(x=unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state))]
             else:
-                return self.move_to_tile(unit, closest_rubble_tile, self.game_state.real_env_steps)
+                return self.move_to_tile(unit, closest_rubble_tile)
 
         # If no rubble tiles are left, idle
         print(f"Unit {unit_id} has cleared all rubble around factory at {assigned_factory}.", file=sys.stderr)
@@ -338,7 +338,7 @@ class RobotController:
 
         return resolved_actions
 
-    def claim_tile(self, unit_id, unit, tile_locations, claimed_tiles, current_turn):
+    def claim_tile(self, unit_id, unit, tile_locations, claimed_tiles):
         """
         Claims the closest unclaimed tile (e.g., ice or ore) for the given unit or returns the already-claimed tile.
         Marks the tile as occupied from the arrival turn until the robot decides to return to the factory.
@@ -401,7 +401,6 @@ class RobotController:
         closest_factory_tile = min(unoccupied_factory_tiles, key=lambda tile: np.mean((tile - unit.pos) ** 2))
 
         direction = direction_to(unit.pos, closest_factory_tile)
-        current_turn = self.game_state.real_env_steps
 
         # Remove claim from robot
         if tuple(unit.pos) in self.claimed_tiles:
@@ -424,15 +423,47 @@ class RobotController:
             return actions
         else:
             # Move towards the closest factory tile
-            return self.move_to_tile(unit, closest_factory_tile, current_turn)
+            return self.move_to_tile(unit, closest_factory_tile)
+        
+    def go_home(self, unit_id, unit, assigned_factory):
+        """
+        Handles the logic for returning to the factory and transferring resources.
+        If no resource_type is specified, the robot will only pick up power.
+        """
+        # Get all tiles within the 3x3 factory area
+        factory_tiles = [(assigned_factory[0] + dx, assigned_factory[1] + dy)
+                         for dx in range(-1, 2) for dy in range(-1, 2)]
 
-    def move_to_tile(self, unit, target_tile, current_turn):
+        # Get all unit positions to check for occupied tiles
+        occupied_positions = {tuple(u.pos) for u in self.game_state.units[self.player].values()}
+
+        # Filter out positions that are at a Manhattan distance of 2 or more from the unit
+        occupied_positions = {pos for pos in occupied_positions if abs(pos[0] - unit.pos[0]) + abs(pos[1] - unit.pos[1]) < 2}
+
+        # Find the closest unoccupied factory tile
+        unoccupied_factory_tiles = [
+            tile for tile in factory_tiles
+            if tuple(tile) not in occupied_positions
+        ]
+
+        if not unoccupied_factory_tiles:
+            print(f"Warning: No unoccupied factory tiles within range for unit {unit_id}.", file=sys.stderr)
+            return []  # No action if no unoccupied tiles are available
+        closest_factory_tile = min(unoccupied_factory_tiles, key=lambda tile: np.mean((tile - unit.pos) ** 2))
+
+        # Remove claim from robot
+        if tuple(unit.pos) in self.claimed_tiles:
+            del self.claimed_tiles[tuple(unit.pos)]
+
+        return self.move(unit, closest_factory_tile)
+
+    def move_to_tile(self, unit, target_tile):
         """
         Moves the unit to the target tile if it is not occupied.
         If the target tile is occupied, move to the second-to-last tile in the path.
         """
         # Perform pathfinding to the target tile
-        pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, target_tile, self.game_state, current_turn)
+        pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, target_tile, self.game_state)
         if pathfinding_result:
 
             # Check if the unit has enough power to execute the path
@@ -479,6 +510,19 @@ class RobotController:
         #print(f"Turn {current_turn}: No path found for robot {unit.unit_id} to target tile {target_tile}.", file=sys.stderr)
         return []
 
+    def move(self, unit, target_tile):
+        """
+        Moves the unit to the target tile if it is not occupied.
+        If the target tile is occupied, move to the second-to-last tile in the path.
+        """
+        # Perform pathfinding to the target tile
+        pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, target_tile, self.game_state)
+        if pathfinding_result:
+            return pathfinding_result.action_queue  # Return the pathfinding action queue
+        else:
+            # If no pathfinding result is found, return an empty action queue
+            return []
+            
     def get_factories(self, game_state):
         factories = game_state.factories[self.player]
         factory_tiles, factory_units = [], []
