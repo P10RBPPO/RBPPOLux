@@ -522,7 +522,65 @@ class RobotController:
         else:
             # If no pathfinding result is found, return an empty action queue
             return []
-            
+    
+    def transfer(self, unit):
+        """
+        Transfers resources from the unit to the factory.
+        If the unit is carrying ice, transfer it to the factory.
+        If the unit is carrying ore, transfer it to the factory.
+        """
+        # Get the assigned factory for this robot
+        if self.is_within_factory(unit, self.robot_to_factory[unit.unit_id]):
+            highest_cargo = self.highest_cargo(unit.cargo)
+            return [unit.transfer(4, highest_cargo, unit.cargo[highest_cargo], repeat=0)]
+    
+    def dig(self, unit, amount=1):
+        """
+        Digs the specified amount of rubble from the unit's current position.
+        """
+        # Check if the unit has enough power to dig
+        if unit.power >= unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state):
+            return [unit.dig(repeat=0, n=amount)]
+        else:
+            print(f"Unit {unit.unit_id} does not have enough power to dig. Power: {unit.power}, Required: {unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state)}", file=sys.stderr)
+            return []
+    
+    def recharge(self, unit, amount):
+        """
+        Recharges the unit's power by the specified amount.
+        """
+        # Check if the unit has enough power to recharge
+        return [unit.recharge(x=amount)]
+
+    def pickup_power(self, unit, amount=None):
+        """
+        Picks up power from the factory.
+        If no amount is specified, defaults to 20% of the factory's power.
+        """
+        # Pick up power from the factory
+        factory = self.get_closest_factory_unit(unit, self.game_state)
+        power_to_pickup = int(factory.power * 0.20) if amount is None else amount
+
+        if power_to_pickup > 0 and factory.cargo.water > 0:
+            return [unit.pickup(4, power_to_pickup, repeat=0, n=1)]
+        else:
+            return []
+
+    # dump whatever resource the unit has the most of
+    # returns the index of the resource to dump
+    def highest_cargo(self, cargo):
+        max_cargo = max(cargo.ice, cargo.ore, cargo.water, cargo.metal)
+        if max_cargo == cargo.ice:
+            return 0
+        elif max_cargo == cargo.ore:
+            return 1
+        elif max_cargo == cargo.water:
+            return 2
+        elif max_cargo == cargo.metal:
+            return 3
+        else:
+            return 0
+
     def get_factories(self, game_state):
         factories = game_state.factories[self.player]
         factory_tiles, factory_units = [], []
