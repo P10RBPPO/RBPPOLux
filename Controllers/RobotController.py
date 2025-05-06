@@ -533,6 +533,8 @@ class RobotController:
         if self.is_within_factory(unit, self.robot_to_factory[unit.unit_id]):
             highest_cargo = self.highest_cargo(unit.cargo)
             return [unit.transfer(4, highest_cargo, unit.cargo[highest_cargo], repeat=0)]
+        else:
+            return []
     
     def dig(self, unit, amount=1):
         """
