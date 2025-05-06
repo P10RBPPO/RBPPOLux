@@ -1,15 +1,16 @@
 import torch
 import numpy as np
 import copy
+import gymnasium as gym
 
 from torch import nn
 from torch.distributions import MultivariateNormal
 from torch.optim import Adam
+import torch.nn.functional as F
+
 from RBPPO_lux_obs_parser import obs_parser
 from RBPPO_network import FeedForwardNN
-
 from RBPPO_lux_env import LuxCustomEnv
-import gymnasium as gym
 
 from lux.kit import obs_to_game_state, GameState
 from RBPPO_lux_action_parser import parse_actions
@@ -205,7 +206,7 @@ class PPO:
                 
                 # Increment timesteps for this batch
                 t += 1
-                                
+                
                 # Parse obs to numpy format
                 obs = obs_parser(obs_dict, self.env)
                 
@@ -245,7 +246,7 @@ class PPO:
             batch_dones.append(ep_dones)
             
         # Reshape data as tensors before returning
-        batch_obs = torch.tensor(batch_obs, dtype=torch.float) # debugger warns this is slow
+        batch_obs = torch.tensor(batch_obs, dtype=torch.float)
         batch_acts = torch.tensor(batch_acts, dtype=torch.float)
         batch_log_probs = torch.tensor(batch_log_probs, dtype=torch.float)
         
@@ -253,16 +254,28 @@ class PPO:
         
         return batch_obs, batch_acts, batch_log_probs, batch_rews, batch_lens, batch_vals, batch_dones
     
+    # Tweak this heavily, as MultivariateNormalDist assumes single value action space
     def get_action(self, obs):
         # Query actor network for mean action (equal to self.actor.forward(obs))
         mean = self.actor(obs)
         
-        # Create Multivariate Normal Distribution
-        dist = MultivariateNormal(mean, self.cov_mat)
+        print(mean)
         
-        # Sample an action from the dist and get its log prob
-        action = dist.sample()
-        log_prob = dist.log_prob(action)
+        # Log Softmax our output for log probs
+        log_softmax = torch.nn.LogSoftmax(dim=0)
+        log_probs = log_softmax(mean)
+        
+        print(log_probs)
+        
+        # # Create Multivariate Normal Distribution
+        # dist = MultivariateNormal(mean, self.cov_mat)
+        
+        # # Sample an action from the dist and get its log prob
+        # action = dist.sample()
+        
+        # log_prob = dist.log_prob(action)
+        
+        exit()
         
         # Return sampled action and log prob
         # detach().numpy() to convert from tensor to numpy array
