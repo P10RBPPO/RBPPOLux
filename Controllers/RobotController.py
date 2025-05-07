@@ -170,7 +170,7 @@ class RobotController:
         if assigned_factory is None:
             print(f"Warning: Unit {unit_id} has no assigned factory.", file=sys.stderr)
             return
-
+        
         # If the robot is carrying ice, return to the assigned factory
         if unit.cargo.ice >= 60:
             return self.return_to_factory(unit_id, unit, assigned_factory, resource_type=0, resource_amount=unit.cargo.ice)
@@ -425,11 +425,13 @@ class RobotController:
             # Move towards the closest factory tile
             return self.move_to_tile(unit, closest_factory_tile)
         
-    def go_home(self, unit_id, unit, assigned_factory):
+    def go_home(self, unit_id, unit):
         """
         Handles the logic for returning to the factory and transferring resources.
         If no resource_type is specified, the robot will only pick up power.
         """
+        assigned_factory = self.robot_to_factory.get(unit_id, None)
+
         # Get all tiles within the 3x3 factory area
         factory_tiles = [(assigned_factory[0] + dx, assigned_factory[1] + dy)
                          for dx in range(-1, 2) for dy in range(-1, 2)]
