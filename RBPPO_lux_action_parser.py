@@ -32,14 +32,11 @@ def parse_actions(custom_env, obs_dict, action_array, role):
     # Parse action array with information to get lux action and chosen action value for PPO
     robot_action, chosen_action, chosen_action_index = parse_action_array(action_array, robot_controller, unit, role)
 
-    # remove this and replace with the single robot action above
-    robot_actions = robot_controller.control_units(game_state=game_state)
-    
     # Handle factory actions
     factory_actions = factory_controller.handle_factory_actions(player, env_cfg, game_state)
     
     combined_actions = {}
-    combined_actions.update(robot_actions)
+    combined_actions.update(robot_action)
     combined_actions.update(factory_actions)
         
     actions[player] = combined_actions
