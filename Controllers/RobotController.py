@@ -510,11 +510,21 @@ class RobotController:
         #print(f"Turn {current_turn}: No path found for robot {unit.unit_id} to target tile {target_tile}.", file=sys.stderr)
         return []
 
-    def move(self, unit, target_tile):
+    def move(self, unit, role_type):
         """
         Moves the unit to the target tile if it is not occupied.
         If the target tile is occupied, move to the second-to-last tile in the path.
         """
+        if role_type == "Ore Miner":
+            ore_tiles = self.get_ore_tile_locations(self.game_state)
+            target_tile = self.claim_tile(unit.unit_id, unit, ore_tiles, self.claimed_tiles)
+        elif role_type == "Ice Miner":
+            ice_tiles = self.get_ice_tile_locations(self.game_state)
+            target_tile = self.claim_tile(unit.unit_id, unit, ice_tiles, self.claimed_tiles)
+        elif role_type == "Rubble Cleaner":
+            rubble_tiles = self.get_rubble_tile_locations(self.game_state)
+            target_tile = self.claim_tile(unit.unit_id, unit, rubble_tiles, self.claimed_tiles)
+
         # Perform pathfinding to the target tile
         pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, target_tile, self.game_state)
         if pathfinding_result:
@@ -541,10 +551,11 @@ class RobotController:
         Digs the specified amount of rubble from the unit's current position.
         """
         # Check if the unit has enough power to dig
-        if unit.power >= unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state):
+        #if unit.power >= unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state):
+        if not self.is_within_factory(unit, self.robot_to_factory[unit.unit_id]):
+            # If the unit is not within the factory, dig rubble
             return [unit.dig(repeat=0, n=amount)]
         else:
-            print(f"Unit {unit.unit_id} does not have enough power to dig. Power: {unit.power}, Required: {unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state)}", file=sys.stderr)
             return []
     
     def recharge(self, unit, amount):
