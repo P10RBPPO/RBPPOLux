@@ -4,31 +4,33 @@ from lux.kit import obs_to_game_state
 import numpy as np
 
 
-def parse_actions(custom_env, obs_dict, action_array):
+def parse_actions(custom_env, obs_dict, action_array, role):
     actions = dict()
     player = "player_0"
     env_cfg = custom_env.env_cfg
     
-    # This shit expects obs not wrapped in a player element
+    # Get observations for a single player
     game_state = obs_to_game_state(custom_env.lux_env.state.env_steps, env_cfg, obs_dict[player])
     
     factory_controller = FactoryController(None, player)  # Initialize with None game state
     robot_controller = RobotController(None, player)  # Initialize with None game state
-
-    # Get the first robot type from obs_dict
-    robot_type = 0
-    player_obs = obs_dict[player]
-    units = player_obs["units"][player]
-    for unit_key in units.keys():
-        unit = units.get(unit_key)
-        robot_type = (0 if unit["unit_type"] == "LIGHT" else 1)
+    robot_controller.update_game_state(game_state) # Update game_state
+    
+    # Get first robot unit from game_state
+    units_dict = game_state.units[player]
+    units = []
+    for _, unit in units_dict.items():
+        units.append(unit)
         break
     
-    # Get friendly factories (Expected: 1)
-    _, factory = robot_controller.get_factories(game_state)
+    # Grab first unit from unit array if any units exist
+    if len(units) == 0:
+        unit = []
+    else:
+        unit = units[0]
     
     # Parse action array with information to get lux action and chosen action value for PPO
-    robot_action, chosen_action = parse_action_array(action_array, factory, robot_controller, robot_type)
+    robot_action, chosen_action, chosen_action_index = parse_action_array(action_array, robot_controller, unit, role)
 
     # remove this and replace with the single robot action above
     robot_actions = robot_controller.control_units(game_state=game_state)
@@ -42,37 +44,40 @@ def parse_actions(custom_env, obs_dict, action_array):
         
     actions[player] = combined_actions
         
-    return actions, chosen_action
+    return actions, chosen_action, chosen_action_index
 
 
-def parse_action_array(action_array, factory, robot_controller, robot_type):
-    abs_action_array = np.abs(action_array)
-    chosen_action_index = np.argmin(abs_action_array)
+def parse_action_array(action_array, robot_controller, unit, role):
+    chosen_action_index = np.argmax(action_array)
     chosen_action = action_array[chosen_action_index]
     
-    role_type = 0 # fix later, should be determined by robot_controller
-    role_type_cargo = (1 if role_type == "Ore Miner" else 0)
+    # If we have a unit, assign a role to it and get an action
+    if bool(unit):
+        robot_controller.assign_role(unit.unit_id, role)
+        role_type = robot_controller.unit_roles[unit.unit_id]
+        
+        robot_action = robot_action_parser(chosen_action_index, unit, robot_controller, role_type)
     
-    robot_action = robot_action_parser(chosen_action_index, factory, role_type, role_type_cargo, robot_type)
-    
-    return robot_action, chosen_action
+        return robot_action, chosen_action, chosen_action_index
+    else:
+        return np.array([]), np.array([0]), np.array([0])
 
 
-def robot_action_parser(action_index, factory, role_type, role_type_cargo, robot_type):
+def robot_action_parser(action_index, unit, robot_controller, role_type):
     robot_action = np.array([])
 
     if (action_index == 0):
-        robot_action = [0, 0, 0, 0, 0, 1] # Move (fix after meeting)
+        robot_action = robot_controller.move(unit, role_type) # Move
     elif (action_index == 1):
-        robot_action = [1, 0, role_type, role_type_cargo, 0, 1] # Transfer
+        robot_action = robot_controller.transfer(unit) # Transfer
     elif (action_index == 2):
-        robot_action = np.array([2, 0, 4, (factory[0].power * 0.2), 0, 1]) # Pickup
+        robot_action = robot_controller.pickup_power(unit) # Pickup
     elif (action_index == 3):
-        robot_action = np.array([3, 0, 0, 0, 0, 1]) # Dig
+        robot_action = robot_controller.dig(unit) # Dig
     elif (action_index == 4):
-        robot_action = [5, 0, 0, robot_type, 0, 1] # Recharge
+        robot_action = robot_controller.recharge(unit) # Recharge
     elif (action_index == 5):
-        robot_action = [0, 0, 0, 0, 0, 1] # Go Home (fix after meeting)
+        robot_action = robot_controller.go_home(unit) # Go Home
     else:
         robot_action = [0, 0, 0, 0, 0, 1] # no-op 
     

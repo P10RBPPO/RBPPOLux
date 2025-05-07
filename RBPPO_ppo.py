@@ -17,6 +17,9 @@ from RBPPO_lux_action_parser import parse_actions
 
 class PPO:
     def __init__(self, env):
+        # Init role array
+        self.roles = ["Ice Miner", "Ore Miner", "Rubble Cleaner"]
+        
         # Init hyperparams
         self._init_hyperparameters()
         
@@ -35,10 +38,6 @@ class PPO:
         self.actor_optim = Adam(self.actor.parameters(), lr=self.lr)
         self.critic_optim = Adam(self.critic.parameters(), lr=self.lr)
         
-        # Create the covariance matrix for get_action - fill_value is stdev value
-        self.cov_var = torch.full(size=(self.act_dim,), fill_value=0.5)
-        self.cov_mat = torch.diag(self.cov_var)
-        
     def _init_hyperparameters(self):
         #  Default values for now
         self.timesteps_per_batch = 1000         # Timesteps per batch
@@ -55,6 +54,8 @@ class PPO:
         self.ent_coef = 0                       # Entropy coefficient for Entropy Regularization
         self.target_kl = 0.02                   # KL Divergence threshold
         self.lam = 0.98                         # Lambda parameter for GAE
+        
+        self.role = self.roles[0]               # Desired role for training
     
     def learn(self, total_timesteps):
         t_so_far = 0 # Timestep counter
@@ -69,13 +70,6 @@ class PPO:
             
             # Calculate collected timesteps for this batch
             t_so_far += np.sum(batch_lens)
-            
-            # Calculate advantage at k-th iteration - non-GAE version
-            # V, _, _ = self.evaluate(batch_obs, batch_acts)
-            
-            # Calc advantage - non-GAE version
-            # Detach to reuse advantage without gradient
-            # A_k = batch_rtgs - V.detach()
             
             # Normalize advantages - decreases variance of advantages
             A_k = (A_k - A_k.mean()) / (A_k.std() + 1e-10)
@@ -216,12 +210,9 @@ class PPO:
                 # Convert numpy obs to torch tensor
                 obs = torch.tensor(obs, dtype=torch.float)
                 
-                # Get action from Multivariate Normal Distribution matrix
-                action, log_prob = self.get_action(obs)
-                val = self.critic(obs)
-                
-                # Create action dict to pass into Lux and return tensor for chosen action for PPO evaluation
-                lux_action_dict, action = parse_actions(self.env, obs_dict, action) 
+                # Get action from Softmax distribution of actions and output action, lux action and log prob
+                action, log_prob, lux_action_dict = self.get_action(obs, obs_dict)
+                val = self.critic(obs) 
                 
                 obs, rew, terminated, truncated, _ = self.env.step(lux_action_dict)
                 done = terminated or truncated
@@ -254,33 +245,27 @@ class PPO:
         
         return batch_obs, batch_acts, batch_log_probs, batch_rews, batch_lens, batch_vals, batch_dones
     
-    # Tweak this heavily, as MultivariateNormalDist assumes single value action space
-    def get_action(self, obs):
-        # Query actor network for mean action (equal to self.actor.forward(obs))
-        mean = self.actor(obs)
-        
-        print(mean)
+    
+    def get_action(self, obs, obs_dict):
+        # Query actor network for action (equal to self.actor.forward(obs))
+        action = self.actor(obs)
         
         # Log Softmax our output for log probs
         log_softmax = torch.nn.LogSoftmax(dim=0)
-        log_probs = log_softmax(mean)
+        log_probs = log_softmax(action)
         
-        print(log_probs)
+        # Convert to numpy before action selection
+        action = action.detach().numpy()
         
-        # # Create Multivariate Normal Distribution
-        # dist = MultivariateNormal(mean, self.cov_mat)
+        # Create action dict to pass into Lux and return tensor for chosen action for PPO evaluation
+        lux_action_dict, output_action, log_prob_index = parse_actions(self.env, obs_dict, action, self.role)
         
-        # # Sample an action from the dist and get its log prob
-        # action = dist.sample()
+        log_prob = log_probs[log_prob_index]
         
-        # log_prob = dist.log_prob(action)
-        
-        exit()
-        
-        # Return sampled action and log prob
+        # Return action, log prob and lux action
         # detach().numpy() to convert from tensor to numpy array
         # log_prob is allowed to remain a tensor as we need the graph
-        return action.detach().numpy(), log_prob.detach()
+        return output_action, log_prob.detach(), lux_action_dict
     
     
     def calculate_gae(self, rewards, values, dones):
@@ -310,28 +295,8 @@ class PPO:
         
         # Convert the batch_advantages list to a PyTorch tensor of type float
         return torch.tensor(batch_advantages, dtype=torch.float)
-    
-    # def compute_rtgs(self, batch_rews):
-    #     # Rewards-to-go per episode per batch to return
-    #     # Shape: num timesteps per episode
-    #     batch_rtgs = []
-        
-    #     # Iterate through each episode backwards to maintain same order
-    #     # in batch_rtgs
-    #     for ep_rews in reversed(batch_rews):
-    #         discounted_reward = 0 # Discounted reward so far
-            
-    #         for rew in reversed(ep_rews):
-    #             discounted_reward = rew + discounted_reward * self.gamma
-    #             batch_rtgs.insert(0, discounted_reward)
-                
-    #     # Convert the rewards-to-go into a tensor
-    #     batch_rtgs = torch.tensor(batch_rtgs, dtype=torch.float)
-        
-    #     return batch_rtgs 
 
 # PPO Test code
-#env = gym.make('Pendulum-v1')
 env = LuxCustomEnv()
 model = PPO(env)
 model.learn(2000)
