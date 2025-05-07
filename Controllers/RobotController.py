@@ -425,11 +425,12 @@ class RobotController:
             # Move towards the closest factory tile
             return self.move_to_tile(unit, closest_factory_tile)
         
-    def go_home(self, unit_id, unit):
+    def go_home(self, unit):
         """
         Handles the logic for returning to the factory and transferring resources.
         If no resource_type is specified, the robot will only pick up power.
         """
+        unit_id = unit.unit_id
         assigned_factory = self.robot_to_factory.get(unit_id, None)
 
         # Get all tiles within the 3x3 factory area
@@ -565,9 +566,9 @@ class RobotController:
         Recharges the unit's power by the specified amount.
         """
         if unit.unit_type == "HEAVY":
-            amount = 10
+            amount = unit.power + 10
         elif unit.unit_type == "LIGHT":
-            amount = 1
+            amount = unit.power + 1
         return [unit.recharge(x=amount)]
 
     def pickup_power(self, unit, amount=None):
