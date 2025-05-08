@@ -15,6 +15,9 @@ from RBPPO_lux_env import LuxCustomEnv
 from lux.kit import obs_to_game_state, GameState
 from RBPPO_lux_action_parser import parse_actions
 
+from Controllers.FactoryController import FactoryController
+from Controllers.RobotController import RobotController
+
 class PPO:
     def __init__(self, env):
         # Init role array
@@ -55,6 +58,7 @@ class PPO:
         self.target_kl = 0.02                   # KL Divergence threshold
         self.lam = 0.98                         # Lambda parameter for GAE
         
+        self.player = "player_0"                # Player identifier
         self.role = self.roles[0]               # Desired role for training
     
     def learn(self, total_timesteps):
@@ -158,6 +162,7 @@ class PPO:
         
         # Calculate log_prob of batch actions using most recent actor network
         mean = self.actor(batch_obs)
+        
         dist = MultivariateNormal(mean, self.cov_mat)
         log_probs = dist.log_prob(batch_acts)
         
@@ -190,6 +195,9 @@ class PPO:
             ep_vals = []
             ep_dones = []
             
+            robot_controller = RobotController(None, self.player)
+            factory_controller = FactoryController(None, self.player)
+            
             obs, _ = self.env.reset()
             done = False
             
@@ -211,11 +219,14 @@ class PPO:
                 obs = torch.tensor(obs, dtype=torch.float)
                 
                 # Get action from Softmax distribution of actions and output action, lux action and log prob
-                action, log_prob, lux_action_dict = self.get_action(obs, obs_dict)
+                action, log_prob, lux_action_dict = self.get_action(obs, obs_dict, robot_controller, factory_controller)
                 val = self.critic(obs) 
                 
                 obs, rew, terminated, truncated, _ = self.env.step(lux_action_dict)
                 done = terminated or truncated
+                
+                done = done["player_0"]
+                rew = rew["player_0"]
                 
                 # Store new observation dict for conversion on next loop
                 obs_dict = copy.deepcopy(obs)
@@ -227,7 +238,7 @@ class PPO:
                 batch_log_probs.append(log_prob)
                 
                 # If episode is done, break
-                if done["player_0"]:
+                if done:
                     break
                 
             # Collect episodic length and rewards
@@ -246,7 +257,7 @@ class PPO:
         return batch_obs, batch_acts, batch_log_probs, batch_rews, batch_lens, batch_vals, batch_dones
     
     
-    def get_action(self, obs, obs_dict):
+    def get_action(self, obs, obs_dict, robot_controller, factory_controller):
         # Query actor network for action (equal to self.actor.forward(obs))
         action = self.actor(obs)
         
@@ -258,7 +269,9 @@ class PPO:
         action = action.detach().numpy()
         
         # Create action dict to pass into Lux and return tensor for chosen action for PPO evaluation
-        lux_action_dict, output_action, log_prob_index = parse_actions(self.env, obs_dict, action, self.role)
+        lux_action_dict, output_action, log_prob_index = parse_actions(self.env, obs_dict, action, self.role, robot_controller, factory_controller)
+        
+        # possibly set in 1st round check, as no units exists yet to avoid skewed data
         
         log_prob = log_probs[log_prob_index]
         
@@ -300,3 +313,4 @@ class PPO:
 env = LuxCustomEnv()
 model = PPO(env)
 model.learn(2000)
+print("JOBS DONE")

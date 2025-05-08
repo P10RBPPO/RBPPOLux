@@ -4,7 +4,7 @@ from lux.kit import obs_to_game_state
 import numpy as np
 
 
-def parse_actions(custom_env, obs_dict, action_array, role):
+def parse_actions(custom_env, obs_dict, action_array, role, robot_controller, factory_controller):
     actions = dict()
     player = "player_0"
     env_cfg = custom_env.env_cfg
@@ -12,8 +12,6 @@ def parse_actions(custom_env, obs_dict, action_array, role):
     # Get observations for a single player
     game_state = obs_to_game_state(custom_env.lux_env.state.env_steps, env_cfg, obs_dict[player])
     
-    factory_controller = FactoryController(None, player)  # Initialize with None game state
-    robot_controller = RobotController(None, player)  # Initialize with None game state
     robot_controller.update_game_state(game_state) # Update game_state
     
     # Get first robot unit from game_state
@@ -29,35 +27,36 @@ def parse_actions(custom_env, obs_dict, action_array, role):
     else:
         unit = units[0]
     
-    # Parse action array with information to get lux action and chosen action value for PPO
-    robot_action, chosen_action, chosen_action_index = parse_action_array(action_array, robot_controller, unit, role)
-
     # Handle factory actions
     factory_actions = factory_controller.handle_factory_actions(player, env_cfg, game_state)
     
-    combined_actions = {}
-    combined_actions.update(robot_action)
-    combined_actions.update(factory_actions)
-        
-    actions[player] = combined_actions
-        
-    return actions, chosen_action, chosen_action_index
+    # Check if any units exist, and 
+    if bool(unit):
+        # Parse action array with information to get lux action and chosen action value for PPO
+        robot_action, chosen_action, chosen_action_index = parse_action_array(action_array, robot_controller, unit, role)
+
+        combined_actions = {}
+        combined_actions.update({unit.unit_id: robot_action})
+        combined_actions.update(factory_actions)
+            
+        actions[player] = combined_actions
+            
+        return actions, chosen_action, chosen_action_index
+    else:
+        actions[player] = factory_actions
+        return actions, 0, 0
 
 
 def parse_action_array(action_array, robot_controller, unit, role):
     chosen_action_index = np.argmax(action_array)
     chosen_action = action_array[chosen_action_index]
     
-    # If we have a unit, assign a role to it and get an action
-    if bool(unit):
-        robot_controller.assign_role(unit.unit_id, role)
-        role_type = robot_controller.unit_roles[unit.unit_id]
-        
-        robot_action = robot_action_parser(chosen_action_index, unit, robot_controller, role_type)
+    robot_controller.assign_role(unit.unit_id, role)
+    role_type = robot_controller.unit_roles[unit.unit_id]
     
-        return robot_action, chosen_action, chosen_action_index
-    else:
-        return np.array([]), np.array([0]), np.array([0])
+    robot_action = robot_action_parser(chosen_action_index, unit, robot_controller, role_type)
+
+    return robot_action, chosen_action, chosen_action_index
 
 
 def robot_action_parser(action_index, unit, robot_controller, role_type):
