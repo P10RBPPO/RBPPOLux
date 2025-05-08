@@ -582,11 +582,10 @@ class RobotController:
         """
         Recharges the unit's power by the specified amount.
         """
-        if unit.unit_type == "HEAVY":
-            amount = unit.power + 10
-        elif unit.unit_type == "LIGHT":
-            amount = unit.power + 1
-        return [unit.recharge(x=amount)]
+        if unit.power < unit.unit_cfg.BATTERY_CAPACITY:
+            amount = 10 if unit.unit_type == "HEAVY" else 1
+            return [unit.recharge(x=unit.power + amount)]
+        return []  # No recharge needed
 
     def pickup_power(self, unit, amount=None):
         """
