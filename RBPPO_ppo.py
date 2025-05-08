@@ -4,7 +4,7 @@ import copy
 import gymnasium as gym
 
 from torch import nn
-from torch.distributions import MultivariateNormal
+from torch.distributions import Categorical
 from torch.optim import Adam
 import torch.nn.functional as F
 
@@ -161,13 +161,20 @@ class PPO:
         V = self.critic(batch_obs).squeeze() 
         
         # Calculate log_prob of batch actions using most recent actor network
-        mean = self.actor(batch_obs)
+        # Query the actor network for raw logits (non-softmaxed)
+        logits = self.actor(batch_obs)
         
-        dist = MultivariateNormal(mean, self.cov_mat)
+        # Categorical Distribution
+        dist = Categorical(logits=logits)
+        
+        # Get log probability of batch actions
         log_probs = dist.log_prob(batch_acts)
         
+        # Get entropy of distrubution
+        entropy = dist.entropy() # shape: (batch_size,)
+        
         # Return predicted V values and log_probs
-        return V, log_probs, dist.entropy()
+        return V, log_probs, entropy
     
     def rollout(self):
         # Batch data
@@ -256,17 +263,18 @@ class PPO:
         
         return batch_obs, batch_acts, batch_log_probs, batch_rews, batch_lens, batch_vals, batch_dones
     
+    #output = F.softmax(self.layer3(activation2), dim=0)
     
     def get_action(self, obs, obs_dict, robot_controller, factory_controller):
         # Query actor network for action (equal to self.actor.forward(obs))
-        action = self.actor(obs)
+        logits = self.actor(obs)
         
-        # Log Softmax our output for log probs
-        log_softmax = torch.nn.LogSoftmax(dim=0)
-        log_probs = log_softmax(action)
+        # Calculate Softmax and log_probs
+        probs = F.softmax(logits, dim=0)
+        log_probs = F.log_softmax(logits, dim=0)
         
         # Convert to numpy before action selection
-        action = action.detach().numpy()
+        action = probs.detach().numpy()
         
         # Create action dict to pass into Lux and return tensor for chosen action for PPO evaluation
         lux_action_dict, output_action, log_prob_index = parse_actions(self.env, obs_dict, action, self.role, robot_controller, factory_controller)
