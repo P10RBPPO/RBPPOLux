@@ -4,7 +4,7 @@ from lux.kit import obs_to_game_state
 import numpy as np
 
 
-def parse_actions(custom_env, obs_dict, action_array, role, robot_controller, factory_controller):
+def parse_actions(custom_env, obs_dict, action_index, role, robot_controller, factory_controller):
     actions = dict()
     player = "player_0"
     env_cfg = custom_env.env_cfg
@@ -32,8 +32,8 @@ def parse_actions(custom_env, obs_dict, action_array, role, robot_controller, fa
     
     # Check if any units exist, and 
     if bool(unit):
-        # Parse action array with information to get lux action and chosen action value for PPO
-        robot_action, chosen_action, chosen_action_index = parse_action_array(action_array, robot_controller, unit, role)
+        # Determine action based on index from categorical distribution
+        robot_action = robot_action_parser(action_index, robot_controller, unit, role)
 
         combined_actions = {}
         combined_actions.update({unit.unit_id: robot_action})
@@ -41,29 +41,20 @@ def parse_actions(custom_env, obs_dict, action_array, role, robot_controller, fa
             
         actions[player] = combined_actions
             
-        return actions, chosen_action, chosen_action_index
+        return actions
     else:
         actions[player] = factory_actions
-        return actions, 0, 0
+        return actions
 
 
-def parse_action_array(action_array, robot_controller, unit, role):
-    chosen_action_index = np.argmax(action_array)
-    chosen_action = action_array[chosen_action_index]
+def robot_action_parser(action_index, robot_controller, unit, role):
+    robot_action = np.array([])
     
     robot_controller.assign_role(unit.unit_id, role)
-    role_type = robot_controller.unit_roles[unit.unit_id]
+    role = robot_controller.unit_roles[unit.unit_id]
     
-    robot_action = robot_action_parser(chosen_action_index, unit, robot_controller, role_type)
-
-    return robot_action, chosen_action, chosen_action_index
-
-
-def robot_action_parser(action_index, unit, robot_controller, role_type):
-    robot_action = np.array([])
-
     if (action_index == 0):
-        robot_action = robot_controller.move(unit, role_type) # Move
+        robot_action = robot_controller.move(unit, role) # Move
     elif (action_index == 1):
         robot_action = robot_controller.transfer(unit) # Transfer
     elif (action_index == 2):

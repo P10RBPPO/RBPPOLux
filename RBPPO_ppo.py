@@ -69,7 +69,7 @@ class PPO:
             
             # Calculate advantage using GAE
             A_k = self.calculate_gae(batch_rews, batch_vals, batch_dones) 
-            V = self.critic(batch_obs).squeeze()
+            V = self.critic(batch_obs).squeeze(-1)
             batch_rtgs = A_k + V.detach()   
             
             # Calculate collected timesteps for this batch
@@ -125,7 +125,7 @@ class PPO:
                     actor_loss = (-torch.min(surr1, surr2)).mean()
                     
                     # MSE loss for critic network
-                    critic_loss = nn.MSELoss()(V, mini_rtgs)
+                    critic_loss = nn.MSELoss()(V.view(-1), mini_rtgs.view(-1))
                 
                     # Entrophy Regularization
                     entropy_loss = entropy.mean()
@@ -158,7 +158,7 @@ class PPO:
         # Query critic network for a value V for each obs in batch_obs
         # Squeeze tensors into a single array instead of multiple arrays in an array
         # batch_obs has the shape (timesteps_per_batch, obs_dim), and we only want timesteps_per_batch, therefore we squeeze
-        V = self.critic(batch_obs).squeeze() 
+        V = self.critic(batch_obs).squeeze(-1) 
         
         # Calculate log_prob of batch actions using most recent actor network
         # Query the actor network for raw logits (non-softmaxed)
@@ -225,7 +225,7 @@ class PPO:
                 # Convert numpy obs to torch tensor
                 obs = torch.tensor(obs, dtype=torch.float)
                 
-                # Get action from Softmax distribution of actions and output action, lux action and log prob
+                # Get action from Categorical Distribution sampling (Softmax distribution) along with its log_probs and converted lux_action dict
                 action, log_prob, lux_action_dict = self.get_action(obs, obs_dict, robot_controller, factory_controller)
                 val = self.critic(obs) 
                 
@@ -255,38 +255,37 @@ class PPO:
             batch_dones.append(ep_dones)
             
         # Reshape data as tensors before returning
-        batch_obs = torch.tensor(batch_obs, dtype=torch.float)
-        batch_acts = torch.tensor(batch_acts, dtype=torch.float)
-        batch_log_probs = torch.tensor(batch_log_probs, dtype=torch.float)
+        batch_obs = torch.tensor(np.array(batch_obs), dtype=torch.float)
+        batch_acts = torch.tensor(np.array(batch_acts), dtype=torch.float)
+        batch_log_probs = torch.tensor(np.array(batch_log_probs), dtype=torch.float)
         
         #batch_rtgs = self.compute_rtgs(batch_rews)
         
         return batch_obs, batch_acts, batch_log_probs, batch_rews, batch_lens, batch_vals, batch_dones
     
-    #output = F.softmax(self.layer3(activation2), dim=0)
     
     def get_action(self, obs, obs_dict, robot_controller, factory_controller):
-        # Query actor network for action (equal to self.actor.forward(obs))
+        # Query actor network for action
         logits = self.actor(obs)
         
-        # Calculate Softmax and log_probs
-        probs = F.softmax(logits, dim=0)
-        log_probs = F.log_softmax(logits, dim=0)
+        # Create Categorical distribution for action sampling
+        # Handles softmax internally
+        dist = Categorical(logits=logits)
         
-        # Convert to numpy before action selection
-        action = probs.detach().numpy()
+        # Sample action
+        action_index = dist.sample()
         
-        # Create action dict to pass into Lux and return tensor for chosen action for PPO evaluation
-        lux_action_dict, output_action, log_prob_index = parse_actions(self.env, obs_dict, action, self.role, robot_controller, factory_controller)
+        # Get log prob of sampled action
+        log_prob = dist.log_prob(action_index)
+        
+        # Create action dict to pass into Lux
+        lux_action_dict = parse_actions(self.env, obs_dict, action_index.item(), self.role, robot_controller, factory_controller)
         
         # possibly set in 1st round check, as no units exists yet to avoid skewed data
         
-        log_prob = log_probs[log_prob_index]
-        
         # Return action, log prob and lux action
-        # detach().numpy() to convert from tensor to numpy array
         # log_prob is allowed to remain a tensor as we need the graph
-        return output_action, log_prob.detach(), lux_action_dict
+        return action_index, log_prob.detach(), lux_action_dict
     
     
     def calculate_gae(self, rewards, values, dones):
@@ -321,4 +320,3 @@ class PPO:
 env = LuxCustomEnv()
 model = PPO(env)
 model.learn(2000)
-print("JOBS DONE")
