@@ -425,7 +425,7 @@ class RobotController:
         else:
             # Move towards the closest factory tile
             return self.move_to_tile(unit, closest_factory_tile)
-        
+    
     def go_home(self, unit):
         """
         Handles the logic for returning to the factory and transferring resources.
@@ -459,7 +459,21 @@ class RobotController:
         if tuple(unit.pos) in self.claimed_tiles:
             del self.claimed_tiles[tuple(unit.pos)]
 
-        return self.move(unit, closest_factory_tile)
+        return self.move_home(unit, closest_factory_tile)
+
+    def move_home(self, unit, target_tile):
+        """
+        Moves the unit to the target tile if it is not occupied.
+        If the target tile is occupied, move to the second-to-last tile in the path.
+        """
+
+        # Perform pathfinding to the target tile
+        pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, target_tile, self.game_state)
+        if pathfinding_result:
+            return pathfinding_result.action_queue  # Return the pathfinding action queue
+        else:
+            # If no pathfinding result is found, return an empty action queue
+            return []
 
     def move_to_tile(self, unit, target_tile):
         """
