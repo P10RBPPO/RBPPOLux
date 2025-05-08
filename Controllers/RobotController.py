@@ -372,6 +372,7 @@ class RobotController:
                 return tile
 
         # If no unclaimed tiles are available, return None
+        print(f"Warning: No unclaimed tiles available for unit {unit_id}.", file=sys.stderr)
         return None
 
     def return_to_factory(self, unit_id, unit, assigned_factory, resource_type=None, resource_amount=0):
@@ -527,6 +528,8 @@ class RobotController:
         elif role_type == "Rubble Cleaner":
             rubble_tiles = self.get_rubble_tile_locations(self.game_state)
             target_tile = self.claim_tile(unit.unit_id, unit, rubble_tiles, self.claimed_tiles)
+        else:
+            print(f'Warning: Unknown role type {role_type} for unit {unit.unit_id}.', file=sys.stderr)
 
         # Perform pathfinding to the target tile
         pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, target_tile, self.game_state)
@@ -544,8 +547,8 @@ class RobotController:
         """
         # Get the assigned factory for this robot
         if self.is_within_factory(unit, self.robot_to_factory[unit.unit_id]):
-            highest_cargo = self.highest_cargo(unit.cargo)
-            return [unit.transfer(4, highest_cargo, unit.cargo[highest_cargo], repeat=0)]
+            highest_cargo_index, highest_cargo_value = self.highest_cargo(unit.cargo)
+            return [unit.transfer(4, highest_cargo_index, highest_cargo_value, repeat=0)]
         else:
             return []
     
@@ -588,17 +591,18 @@ class RobotController:
     # dump whatever resource the unit has the most of
     # returns the index of the resource to dump
     def highest_cargo(self, cargo):
-        max_cargo = max(cargo.ice, cargo.ore, cargo.water, cargo.metal)
-        if max_cargo == cargo.ice:
-            return 0
-        elif max_cargo == cargo.ore:
-            return 1
-        elif max_cargo == cargo.water:
-            return 2
-        elif max_cargo == cargo.metal:
-            return 3
-        else:
-            return 0
+        """
+        Returns the index and value of the resource with the highest amount in the unit's cargo.
+        """
+        cargo_dict = {
+            0: cargo.ice,
+            1: cargo.ore,
+            2: cargo.water,
+            3: cargo.metal
+        }
+        max_index = max(cargo_dict, key=cargo_dict.get)  # Find the index of the highest cargo
+        max_value = cargo_dict[max_index]  # Get the value of the highest cargo
+        return max_index, max_value
 
     def get_factories(self, game_state):
         factories = game_state.factories[self.player]
