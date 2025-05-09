@@ -13,7 +13,7 @@ from RBPPO_network import FeedForwardNN
 from RBPPO_lux_env import LuxCustomEnv
 
 from lux.kit import obs_to_game_state, GameState
-from RBPPO_lux_action_parser import parse_actions
+from RBPPO_lux_action_parser import parse_all_actions, factory_action_parser
 
 from Controllers.FactoryController import FactoryController
 from Controllers.RobotController import RobotController
@@ -181,26 +181,20 @@ class PPO:
         batch_obs = []              # batch observations
         batch_acts = []             # batch actions
         batch_log_probs = []        # log probs of each action
-        batch_rews = []             # batch rewards
-        #batch_rtgs = []            # batch rewards-to-go
-        batch_lens = []             # episodic lengths in batch
         
+        batch_rews = []             # batch rewards
+        batch_lens = []             # episodic lengths in batch
         batch_vals = []             # batch critic values
         batch_dones = []            # Done flags
-        
-        # Episodic data
-        ep_rews = []                # episodic rewards
-        ep_vals = []                # episodic critic values
-        ep_dones = []               # episodic done flags
         
         # Number of timesteps run so far this batch    
         t = 0
     
         while t < self.timesteps_per_batch:
-            # Rewards this ep
-            ep_rews = []
-            ep_vals = []
-            ep_dones = []
+            # Episodic data
+            ep_rews = []                # episodic rewards
+            ep_vals = []                # episodic critic values
+            ep_dones = []               # episodic done flags
             
             robot_controller = RobotController(None, self.player)
             factory_controller = FactoryController(None, self.player)
@@ -208,26 +202,50 @@ class PPO:
             obs, _ = self.env.reset()
             done = False
             
+            # Copy observations to maintain a dict version for game_state creation
             obs_dict = copy.deepcopy(obs)
             
+            # Parse obs to numpy format for storage
+            obs_np = obs_parser(obs_dict, self.env)
+            
+            # Convert numpy obs to torch tensor for critic
+            obs = torch.tensor(obs_np, dtype=torch.float)
+            
+            # Value cache for macro actions to execute correctly
+            macro_action_queue_length = 0   # initially empty
+            macro_action = None             # action (index format)
+            macro_log_prob = None           # action log prob
+            macro_critic_val = None         # critic value for value loss
+            macro_obs_np = None             # observations at the time of macro action selection
+            macro_reward = 0                # reward collected during macro action
+            
             for ep_t in range(self.max_timesteps_per_episode):
+                # If episode is done, break
+                if done:
+                    break
+                
+                # collect done value
                 ep_dones.append(done)
                 
                 # Increment timesteps for this batch
                 t += 1
-                
-                # Parse obs to numpy format
-                obs = obs_parser(obs_dict, self.env)
-                
-                # Collect obs
-                batch_obs.append(obs)
-                
-                # Convert numpy obs to torch tensor
-                obs = torch.tensor(obs, dtype=torch.float)
-                
-                # Get action from Categorical Distribution sampling (Softmax distribution) along with its log_probs and converted lux_action dict
-                action, log_prob, lux_action_dict = self.get_action(obs, obs_dict, robot_controller, factory_controller)
-                val = self.critic(obs) 
+
+                # If the unit has no action in its action queue
+                if macro_action_queue_length <= 0:
+                    # Get action from Categorical Distribution sampling (Softmax distribution) along with its log_probs and converted lux_action dict
+                    action, log_prob, lux_action_dict, macro_action_length = self.get_action(obs, obs_dict, robot_controller, factory_controller)
+
+                    macro_action_queue_length = macro_action_length - 1 # subtract for the upcoming step
+                    macro_action = action # store action index in cache
+                    macro_log_prob = log_prob # Store log_prob for action in cache
+                    macro_critic_val = self.critic(obs).detach().flatten() # Poll critic network to value loss calc
+                    macro_obs_np = obs_np # Store numpy observations in cache
+                    macro_reward = 0 # reset macro reward value
+                else:
+                    macro_action_queue_length -= 1 # Reduce action queue counter accordingly
+                    # Poll a new action set only for factories
+                    lux_action_dict = factory_action_parser(self.env, obs_dict, factory_controller) 
+                    
                 
                 obs, rew, terminated, truncated, _ = self.env.step(lux_action_dict)
                 done = terminated or truncated
@@ -235,18 +253,25 @@ class PPO:
                 done = done["player_0"]
                 rew = rew["player_0"]
                 
+                macro_reward += rew # increase macro reward
+                
                 # Store new observation dict for conversion on next loop
                 obs_dict = copy.deepcopy(obs)
                 
-                # Collect reward, action and log prob
-                ep_rews.append(rew)
-                ep_vals.append(val.flatten())
-                batch_acts.append(action)
-                batch_log_probs.append(log_prob)
+                # Parse obs to numpy format for storage
+                obs_np = obs_parser(obs_dict, self.env)
                 
-                # If episode is done, break
-                if done:
-                    break
+                # Convert numpy obs to torch tensor for critic
+                obs = torch.tensor(obs_np, dtype=torch.float)
+
+                if macro_action_queue_length <= 0 or done:
+                    # Collect obs
+                    batch_obs.append(macro_obs_np)
+                    # Collect reward, action and log prob
+                    batch_acts.append(macro_action)
+                    batch_log_probs.append(macro_log_prob)
+                    ep_rews.append(macro_reward)
+                    ep_vals.append(macro_critic_val)
                 
             # Collect episodic length and rewards
             batch_lens.append(ep_t + 1) # Increment because timestep starts at 0
@@ -258,9 +283,7 @@ class PPO:
         batch_obs = torch.tensor(np.array(batch_obs), dtype=torch.float)
         batch_acts = torch.tensor(np.array(batch_acts), dtype=torch.float)
         batch_log_probs = torch.tensor(np.array(batch_log_probs), dtype=torch.float)
-        
-        #batch_rtgs = self.compute_rtgs(batch_rews)
-        
+                
         return batch_obs, batch_acts, batch_log_probs, batch_rews, batch_lens, batch_vals, batch_dones
     
     
@@ -279,13 +302,13 @@ class PPO:
         log_prob = dist.log_prob(action_index)
         
         # Create action dict to pass into Lux
-        lux_action_dict = parse_actions(self.env, obs_dict, action_index.item(), self.role, robot_controller, factory_controller)
+        lux_action_dict, macro_action_length = parse_all_actions(self.env, obs_dict, action_index.item(), self.role, robot_controller, factory_controller)
         
         # possibly set in 1st round check, as no units exists yet to avoid skewed data
         
         # Return action, log prob and lux action
         # log_prob is allowed to remain a tensor as we need the graph
-        return action_index, log_prob.detach(), lux_action_dict
+        return action_index, log_prob.detach(), lux_action_dict, macro_action_length
     
     
     def calculate_gae(self, rewards, values, dones):

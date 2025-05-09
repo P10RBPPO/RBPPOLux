@@ -4,7 +4,8 @@ from lux.kit import obs_to_game_state
 import numpy as np
 
 
-def parse_actions(custom_env, obs_dict, action_index, role, robot_controller, factory_controller):
+# Creates a combined output of both factory and robot actions
+def parse_all_actions(custom_env, obs_dict, action_index, role, robot_controller, factory_controller):
     actions = dict()
     player = "player_0"
     env_cfg = custom_env.env_cfg
@@ -13,6 +14,9 @@ def parse_actions(custom_env, obs_dict, action_index, role, robot_controller, fa
     game_state = obs_to_game_state(custom_env.lux_env.state.env_steps, env_cfg, obs_dict[player])
     
     robot_controller.update_game_state(game_state) # Update game_state
+    
+    # Get factory actions
+    factory_actions = factory_controller.handle_factory_actions(player, env_cfg, game_state)
     
     # Get first robot unit from game_state
     units_dict = game_state.units[player]
@@ -27,13 +31,10 @@ def parse_actions(custom_env, obs_dict, action_index, role, robot_controller, fa
     else:
         unit = units[0]
     
-    # Handle factory actions
-    factory_actions = factory_controller.handle_factory_actions(player, env_cfg, game_state)
-    
-    # Check if any units exist, and 
+    # Check if any units exist 
     if bool(unit):
         # Determine action based on index from categorical distribution
-        robot_action = robot_action_parser(action_index, robot_controller, unit, role)
+        robot_action, robot_action_q_length = robot_action_parser(action_index, robot_controller, unit, role)
 
         combined_actions = {}
         combined_actions.update({unit.unit_id: robot_action})
@@ -41,11 +42,24 @@ def parse_actions(custom_env, obs_dict, action_index, role, robot_controller, fa
             
         actions[player] = combined_actions
             
-        return actions
+        return actions, robot_action_q_length
     else:
         actions[player] = factory_actions
-        return actions
+        return actions, 0
 
+# Returns only an action set for the factory (for when macro actions are underway)
+def factory_action_parser(custom_env, obs_dict, factory_controller):
+    actions = dict()
+    player = "player_0"
+    env_cfg = custom_env.env_cfg
+    
+    # Get observations for a single player in game_state format
+    game_state = obs_to_game_state(custom_env.lux_env.state.env_steps, env_cfg, obs_dict[player])
+    
+    factory_actions = factory_controller.handle_factory_actions(player, env_cfg, game_state)
+    
+    actions[player] = factory_actions
+    return actions
 
 def robot_action_parser(action_index, robot_controller, unit, role):
     robot_action = np.array([])
@@ -68,7 +82,7 @@ def robot_action_parser(action_index, robot_controller, unit, role):
     else:
         robot_action = [0, 0, 0, 0, 0, 1] # no-op 
     
-    return robot_action
+    return robot_action, len(robot_action)
 
 # Action array: [action_id, direction, resource, amount, repeat, n]
 # Action direction: (0 = center, 1 = up, 2 = right, 3 = down, 4 = left)
