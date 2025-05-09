@@ -35,10 +35,10 @@ class RobotController:
         if unit_id not in self.unit_roles:
             role = self.determine_role(unit_id, unit)
             self.assign_role(unit_id, role)
+            print(f"Assigned role '{role}' to unit {unit_id}", file=sys.stderr)
 
     def assign_role(self, unit_id, role):
         self.unit_roles[unit_id] = role
-        print(f"Assigned role '{role}' to unit {unit_id}", file=sys.stderr)
     
     def assign_factory(self, unit_id, factory_pos):
         self.robot_to_factory[unit_id] = factory_pos
@@ -424,55 +424,6 @@ class RobotController:
         else:
             # Move towards the closest factory tile
             return self.move_to_tile(unit, closest_factory_tile)
-    
-    def go_home(self, unit):
-        """
-        Handles the logic for returning to the factory and transferring resources.
-        If no resource_type is specified, the robot will only pick up power.
-        """
-        unit_id = unit.unit_id
-        assigned_factory = self.robot_to_factory.get(unit_id, None)
-
-        # Get all tiles within the 3x3 factory area
-        factory_tiles = [(assigned_factory[0] + dx, assigned_factory[1] + dy)
-                         for dx in range(-1, 2) for dy in range(-1, 2)]
-
-        # Get all unit positions to check for occupied tiles
-        occupied_positions = {tuple(u.pos) for u in self.game_state.units[self.player].values()}
-
-        # Filter out positions that are at a Manhattan distance of 2 or more from the unit
-        occupied_positions = {pos for pos in occupied_positions if abs(pos[0] - unit.pos[0]) + abs(pos[1] - unit.pos[1]) < 2}
-
-        # Find the closest unoccupied factory tile
-        unoccupied_factory_tiles = [
-            tile for tile in factory_tiles
-            if tuple(tile) not in occupied_positions
-        ]
-
-        if not unoccupied_factory_tiles:
-            print(f"Warning: No unoccupied factory tiles within range for unit {unit_id}.", file=sys.stderr)
-            return []  # No action if no unoccupied tiles are available
-        closest_factory_tile = min(unoccupied_factory_tiles, key=lambda tile: np.mean((tile - unit.pos) ** 2))
-
-        # Remove claim from robot
-        if tuple(unit.pos) in self.claimed_tiles:
-            del self.claimed_tiles[tuple(unit.pos)]
-
-        return self.move_home(unit, closest_factory_tile)
-
-    def move_home(self, unit, target_tile):
-        """
-        Moves the unit to the target tile if it is not occupied.
-        If the target tile is occupied, move to the second-to-last tile in the path.
-        """
-
-        # Perform pathfinding to the target tile
-        pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, target_tile, self.game_state)
-        if pathfinding_result:
-            return pathfinding_result.action_queue  # Return the pathfinding action queue
-        else:
-            # If no pathfinding result is found, return an empty action queue
-            return []
 
     def move_to_tile(self, unit, target_tile):
         """
@@ -526,95 +477,6 @@ class RobotController:
         # If no pathfinding result is found, return an empty action queue
         #print(f"Turn {current_turn}: No path found for robot {unit.unit_id} to target tile {target_tile}.", file=sys.stderr)
         return []
-
-    def move(self, unit, role_type):
-        """
-        Moves the unit to the target tile if it is not occupied.
-        If the target tile is occupied, move to the second-to-last tile in the path.
-        """
-        if role_type == "Ore Miner":
-            ore_tiles = self.get_ore_tile_locations(self.game_state)
-            target_tile = self.claim_tile(unit.unit_id, unit, ore_tiles, self.claimed_tiles)
-        elif role_type == "Ice Miner":
-            ice_tiles = self.get_ice_tile_locations(self.game_state)
-            target_tile = self.claim_tile(unit.unit_id, unit, ice_tiles, self.claimed_tiles)
-        elif role_type == "Rubble Cleaner":
-            rubble_tiles = self.get_rubble_tile_locations(self.game_state)
-            target_tile = self.claim_tile(unit.unit_id, unit, rubble_tiles, self.claimed_tiles)
-        else:
-            print(f'Warning: Unknown role type {role_type} for unit {unit.unit_id}.', file=sys.stderr)
-
-        # Perform pathfinding to the target tile
-        pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, target_tile, self.game_state)
-        if pathfinding_result:
-            return pathfinding_result.action_queue  # Return the pathfinding action queue
-        else:
-            # If no pathfinding result is found, return an empty action queue
-            return []
-    
-    def transfer(self, unit):
-        """
-        Transfers resources from the unit to the factory.
-        If the unit is carrying ice, transfer it to the factory.
-        If the unit is carrying ore, transfer it to the factory.
-        """
-        # Get the assigned factory for this robot
-        if self.is_within_factory(unit, self.robot_to_factory[unit.unit_id]):
-            highest_cargo_index, highest_cargo_value = self.highest_cargo(unit.cargo)
-            return [unit.transfer(4, highest_cargo_index, highest_cargo_value, repeat=0)]
-        else:
-            return []
-    
-    def dig(self, unit, amount=1):
-        """
-        Digs the specified amount of rubble from the unit's current position.
-        """
-        # Check if the unit has enough power to dig
-        #if unit.power >= unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state):
-        if not self.is_within_factory(unit, self.robot_to_factory[unit.unit_id]):
-            # If the unit is not within the factory, dig rubble
-            return [unit.dig(repeat=0, n=amount)]
-        else:
-            return []
-    
-    def recharge(self, unit):
-        """
-        Recharges the unit's power by the specified amount.
-        """
-        if unit.power < unit.unit_cfg.BATTERY_CAPACITY:
-            amount = 10 if unit.unit_type == "HEAVY" else 1
-            return [unit.recharge(x=unit.power + amount)]
-        return []  # No recharge needed
-
-    def pickup_power(self, unit, amount=None):
-        """
-        Picks up power from the factory.
-        If no amount is specified, defaults to 20% of the factory's power.
-        """
-        # Pick up power from the factory
-        factory = self.get_closest_factory_unit(unit, self.game_state)
-        power_to_pickup = int(factory.power * 0.20) if amount is None else amount
-
-        if power_to_pickup > 0 and factory.cargo.water > 0:
-            return [unit.pickup(4, power_to_pickup, repeat=0, n=1)]
-        else:
-            return []
-
-    # dump whatever resource the unit has the most of
-    # returns the index of the resource to dump
-    def highest_cargo(self, cargo):
-        """
-        Returns the index and value of the resource with the highest amount in the unit's cargo.
-        """
-        cargo_dict = {
-            0: cargo.ice,
-            1: cargo.ore,
-            2: cargo.water,
-            3: cargo.metal
-        }
-        max_index = max(cargo_dict, key=cargo_dict.get)  # Find the index of the highest cargo
-        max_value = cargo_dict[max_index]  # Get the value of the highest cargo
-        return max_index, max_value
 
     def get_factories(self, game_state):
         factories = game_state.factories[self.player]
