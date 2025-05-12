@@ -38,7 +38,7 @@ class RobotController:
 
     def assign_role(self, unit_id, role):
         self.unit_roles[unit_id] = role
-        print(f"Assigned role '{role}' to unit {unit_id}", file=sys.stderr)
+        #print(f"Assigned role '{role}' to unit {unit_id}", file=sys.stderr)
     
     def assign_factory(self, unit_id, factory_pos):
         self.robot_to_factory[unit_id] = factory_pos

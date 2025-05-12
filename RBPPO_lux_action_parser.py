@@ -64,8 +64,9 @@ def factory_action_parser(custom_env, obs_dict, factory_controller):
 def robot_action_parser(action_index, robot_controller, unit, role):
     robot_action = np.array([])
     
-    robot_controller.assign_role(unit.unit_id, role)
-    role = robot_controller.unit_roles[unit.unit_id]
+    if role != robot_controller.unit_roles[unit.unit_id]: 
+        robot_controller.assign_role(unit.unit_id, role)
+        role = robot_controller.unit_roles[unit.unit_id]
     
     if (action_index == 0):
         robot_action = robot_controller.move(unit, role) # Move
