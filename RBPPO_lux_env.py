@@ -15,7 +15,7 @@ class LuxCustomEnv(gym.Env):
         
         self.env_cfg = self.lux_env.env_cfg
 
-        self.observation_space = spaces.Box(low=-999, high=999, shape=(15,), dtype=np.float32)
+        self.observation_space = spaces.Box(low=-999, high=999, shape=(12,), dtype=np.float32)
         self.action_space = spaces.Discrete(6)
         
     def reset(self, **kwargs):
@@ -49,6 +49,8 @@ class LuxCustomEnv(gym.Env):
         
         # Collect metric stats for customized rewards
         player = list(self.agents.keys())[0]
+        
+        # call reward parser
         
         # Rewards should be removed and customized to fit each role here before returning
         return obs, reward, done, truncated, info

@@ -16,7 +16,7 @@ def obs_parser(obs, custom_env):
     
     # Observation space shape
     obs_vec = np.zeros(
-        15,
+        12,
     )
     
     # Factories
@@ -24,7 +24,7 @@ def obs_parser(obs, custom_env):
     factory_vec = np.zeros(2)
     for factory_key in factories.keys():
         factory = factories.get(factory_key)
-        factory_key = np.array(factory["pos"]) / env_cfg.map_size # Normalized first friendly factory position
+        factory_vec = np.array(factory["pos"]) / env_cfg.map_size # Normalized first friendly factory position
         factory_cargo_vec = np.array(
             [
                 factory["cargo"]["ice"] / 1000,
@@ -52,36 +52,31 @@ def obs_parser(obs, custom_env):
         
         unit_type = (0 if unit["unit_type"] == "LIGHT" else 1)
         
-        # Normalize unit position
-        pos = np.array(unit["pos"]) / env_cfg.map_size
+        # Raw and normalized unit position
+        unit_pos_raw = np.array(unit["pos"])
+        unit_pos = unit_pos_raw / env_cfg.map_size
         
+        # Squared euclidean distance to factory closest to the unit (assuming 1 factory)
+        factory_distance = np.sum((factory_vec - unit_pos) ** 2)
+        
+        # Append unit information together
         unit_vec = np.concatenate(
-            [pos, [unit_type], cargo_vec, [unit["team_id"]]], axis=-1
+            [unit_pos, [unit_type], cargo_vec, [unit["team_id"]]], axis=-1
         )
         
-        # Find closest ice tile to the unit
-        ice_tile_locations = np.mean(
-            (ice_tile_locations - np.array(unit["pos"])) ** 2, 1
+        # Find the closest ice tile to the unit and return the squared euclidean distance to it
+        closest_ice_tile_distance = (
+            np.min(np.sum((ice_tile_locations - unit_pos_raw) ** 2, axis=1)) / (env_cfg.map_size ** 2)
         )
         
-        # Normalize ice tile location
-        closest_ice_tile = (
-            ice_tile_locations[np.argmin(ice_tile_locations)] / env_cfg.map_size
-        )
-        
-        # Find closest ore tile to the unit
-        ore_tile_locations = np.mean(
-            (ore_tile_locations - np.array(unit["pos"])) ** 2, 1
-        )
-        
-        # Normalize ore tile location
-        closest_ore_tile = (
-            ore_tile_locations[np.argmin(ore_tile_locations)] / env_cfg.map_size
+        # Find the closest ore tile to the unit and return the squared euclidean distance to it
+        closest_ore_tile_distance = (
+            np.min(np.sum((ore_tile_locations - unit_pos_raw) ** 2, axis=1)) / (env_cfg.map_size ** 2)
         )
         
         # Combine observation vectors to a single np.array
         obs_vec = np.concatenate(
-            [unit_vec, factory_vec - pos, factory_cargo_vec, closest_ice_tile - pos, closest_ore_tile - pos], axis=-1
+            [unit_vec, [factory_distance], factory_cargo_vec, [closest_ice_tile_distance], [closest_ore_tile_distance]], axis=-1
         )
         break
     
