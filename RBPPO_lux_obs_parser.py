@@ -16,15 +16,21 @@ def obs_parser(obs, custom_env):
     
     # Observation space shape
     obs_vec = np.zeros(
-        13,
+        15,
     )
     
     # Factories
     factories = player_obs["factories"][agent]
     factory_vec = np.zeros(2)
     for factory_key in factories.keys():
-        factory = factories[factory_key]
+        factory = factories.get(factory_key)
         factory_key = np.array(factory["pos"]) / env_cfg.map_size # Normalized first friendly factory position
+        factory_cargo_vec = np.array(
+            [
+                factory["cargo"]["ice"] / 1000,
+                factory["cargo"]["ore"] / 1000,
+            ]
+        )
         break
     
     # Units
@@ -75,7 +81,7 @@ def obs_parser(obs, custom_env):
         
         # Combine observation vectors to a single np.array
         obs_vec = np.concatenate(
-            [unit_vec, factory_vec - pos, closest_ice_tile - pos, closest_ore_tile - pos], axis=-1
+            [unit_vec, factory_vec - pos, factory_cargo_vec, closest_ice_tile - pos, closest_ore_tile - pos], axis=-1
         )
         break
     

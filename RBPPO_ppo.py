@@ -342,4 +342,4 @@ class PPO:
 # PPO Test code
 env = LuxCustomEnv()
 model = PPO(env)
-model.learn(2000)
+model.learn(1000)

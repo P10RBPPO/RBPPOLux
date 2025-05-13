@@ -2,7 +2,7 @@ import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 from luxai_s2.env import LuxAI_S2
-from luxai_s2.state import StatsStateDict
+from luxai_s2.state import StatsStateDict, create_empty_stats
 from agent import Agent
 
 class LuxCustomEnv(gym.Env):
@@ -14,9 +14,8 @@ class LuxCustomEnv(gym.Env):
         self.lux_env.reset()
         
         self.env_cfg = self.lux_env.env_cfg
-        self.agent = {}
 
-        self.observation_space = spaces.Box(low=-999, high=999, shape=(13,), dtype=np.float32)
+        self.observation_space = spaces.Box(low=-999, high=999, shape=(15,), dtype=np.float32)
         self.action_space = spaces.Discrete(6)
         
     def reset(self, **kwargs):
@@ -49,11 +48,8 @@ class LuxCustomEnv(gym.Env):
         obs, reward, done, truncated, info = self.lux_env.step(action)
         
         # Collect metric stats for customized rewards
-        # player = list(self.agents.keys())[0]
-        # if player in self.lux_env.state.stats:
-        #     stats: StatsStateDict = self.lux_env.state.stats[player]
-        #     print(stats)
-            
+        player = list(self.agents.keys())[0]
+        
         # Rewards should be removed and customized to fit each role here before returning
         return obs, reward, done, truncated, info
 

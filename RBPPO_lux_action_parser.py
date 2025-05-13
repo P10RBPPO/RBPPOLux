@@ -47,7 +47,7 @@ def parse_all_actions(custom_env, obs_dict, action_index, role, robot_controller
         actions[player] = factory_actions
         return actions, 0
 
-# Returns only an action set for the factory (for when macro actions are underway)
+# Returns only an action set for the factory (for when macro actions are underway) - Alter code so no actions are provided after initial robot contruction
 def factory_action_parser(custom_env, obs_dict, factory_controller):
     actions = dict()
     player = "player_0"
