@@ -22,6 +22,7 @@ def obs_parser(obs, custom_env):
     # Factories
     factories = player_obs["factories"][agent]
     factory_vec = np.zeros(2)
+    factory_cargo_vec = np.zeros(2)
     for factory_key in factories.keys():
         factory = factories.get(factory_key)
         factory_vec = np.array(factory["pos"]) / env_cfg.map_size # Normalized first friendly factory position

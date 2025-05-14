@@ -1,8 +1,12 @@
+import copy
 import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 from luxai_s2.env import LuxAI_S2
 from luxai_s2.state import StatsStateDict, create_empty_stats
+import torch
+from RBPPO_lux_obs_parser import obs_parser
+from RBPPO_lux_reward_parser import reward_parser
 from agent import Agent
 
 class LuxCustomEnv(gym.Env):
@@ -35,7 +39,7 @@ class LuxCustomEnv(gym.Env):
         self.prev_obs = obs
         return obs, {}
     
-    def step(self, action):
+    def step(self, action, prev_obs, custom_env):
         
         # Fill enemy factories to survive 1000 turns
         opp_agent = list(self.agents.keys())[1]
@@ -45,14 +49,16 @@ class LuxCustomEnv(gym.Env):
             factory = opp_factories[factory_key]
             factory.cargo.water = 1000
         
-        obs, reward, done, truncated, info = self.lux_env.step(action)
+        # Possibly save reward here, as it returns reward for surviving 1000 turns or dying
+        obs, _, done, truncated, info = self.lux_env.step(action)
         
         # Collect metric stats for customized rewards
         player = list(self.agents.keys())[0]
         
-        # call reward parser
+        new_obs = torch.tensor(obs_parser(copy.deepcopy(obs), custom_env), dtype=torch.float)
         
-        # Rewards should be removed and customized to fit each role here before returning
+        reward = reward_parser(prev_obs, new_obs, True)
+
         return obs, reward, done, truncated, info
 
 

@@ -247,11 +247,10 @@ class PPO:
                     lux_action_dict = factory_action_parser(self.env, obs_dict, factory_controller) 
                     
                 
-                obs, rew, terminated, truncated, _ = self.env.step(lux_action_dict)
+                obs, rew, terminated, truncated, _ = self.env.step(lux_action_dict, obs, self.env)
                 done = terminated or truncated
                 
                 done = done["player_0"]
-                rew = rew["player_0"]
                 
                 macro_reward += rew # increase macro reward
                 
