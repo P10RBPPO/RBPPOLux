@@ -21,8 +21,8 @@
 # 4: Reward unit for moving towards resource if cargo is empty (heavy) (done)
 # 5: Reward unit for moving towards factory if cargo is >0 (heavy)(done)
 # 6: Consider static or dynamic role, and if all rewards are equal with role boosting role-specific actions (ice as ice-miner and etc.)
-# 7: Consider macro reward setup later
-# 8: Dont forget 1000-turn survival reward (consider ice added for each ore transferred to factory, to keep training fair for ore miner)
+# 7: Consider macro reward setup later (done, discounted in PPO code so keep raw reward values here)
+# 8: Dont forget 1000-turn survival reward (consider ice added for each ore transferred to factory, to keep training fair for ore miner) - unsure if this is needed for now
 
 def reward_parser(prev_obs, new_obs, heavy_shaping=False):
     reward = 0

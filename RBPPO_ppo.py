@@ -2,6 +2,8 @@ import torch
 import numpy as np
 import copy
 import gymnasium as gym
+import os
+import json
 
 from torch import nn
 from torch.distributions import Categorical
@@ -20,6 +22,9 @@ from Controllers.RobotController import RobotController
 
 class PPO:
     def __init__(self, env):
+        # If GPU, then use it, else use CPU
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
         # Init role array
         self.roles = ["Ice Miner", "Ore Miner", "Rubble Cleaner"]
         
@@ -37,13 +42,17 @@ class PPO:
         self.actor = FeedForwardNN(self.obs_dim, self.act_dim)
         self.critic = FeedForwardNN(self.obs_dim, 1)
         
+        # Move networks to the GPU
+        #self.actor.to(self.device)
+        #self.critic.to(self.device)
+        
         # Init Optimizer
         self.actor_optim = Adam(self.actor.parameters(), lr=self.lr)
         self.critic_optim = Adam(self.critic.parameters(), lr=self.lr)
         
     def _init_hyperparameters(self):
         #  Default values for now
-        self.timesteps_per_batch = 1000         # Timesteps per batch
+        self.timesteps_per_batch = 2000         # Timesteps per batch
         self.max_timesteps_per_episode = 1000   # Timesteps per episode    
         
         self.n_updates_per_iteration = 5        # Epoch count
@@ -64,8 +73,13 @@ class PPO:
     def learn(self, total_timesteps):
         t_so_far = 0 # Timestep counter
         
+        batch_rews_all = [] # reward storage for full training batch
+        
         while t_so_far < total_timesteps:
             batch_obs, batch_acts, batch_log_probs, batch_rews, batch_lens, batch_vals, batch_dones = self.rollout()
+            
+            # Save batch rewards
+            batch_rews_all.extend(batch_rews)
             
             # Calculate advantage using GAE
             A_k = self.calculate_gae(batch_rews, batch_vals, batch_dones) 
@@ -149,10 +163,13 @@ class PPO:
                 # Approximating KL Divergence
                 if approx_kl > self.target_kl:
                     break # if KL is above threshold
-                
-                # Loss print
-                # avg_loss = sum(loss) / len(loss)
-                # print(avg_loss)
+
+        # Compute average episodic reward for this batch
+        ep_rewards = [sum(ep_rews) for ep_rews in batch_rews_all]
+        avg_reward = sum(ep_rewards) / len(ep_rewards)
+
+        return avg_reward
+
                 
     def evaluate(self,batch_obs, batch_acts):
         # Query critic network for a value V for each obs in batch_obs
@@ -212,7 +229,7 @@ class PPO:
             obs = torch.tensor(obs_np, dtype=torch.float)
             
             # Value cache for macro actions to execute correctly
-            macro_action_queue_length = 0   # initially empty
+            remaining_macro_action_queue_length = 0   # initially empty
             macro_action = None             # action (index format)
             macro_log_prob = None           # action log prob
             macro_critic_val = None         # critic value for value loss
@@ -231,18 +248,18 @@ class PPO:
                 t += 1
 
                 # If the unit has no action in its action queue
-                if macro_action_queue_length <= 0:
+                if remaining_macro_action_queue_length <= 0:
                     # Get action from Categorical Distribution sampling (Softmax distribution) along with its log_probs and converted lux_action dict
                     action, log_prob, lux_action_dict, macro_action_length = self.get_action(obs, obs_dict, robot_controller, factory_controller)
 
-                    macro_action_queue_length = macro_action_length - 1 # subtract for the upcoming step
+                    remaining_macro_action_queue_length = macro_action_length - 1 # subtract for the upcoming step
                     macro_action = action # store action index in cache
                     macro_log_prob = log_prob # Store log_prob for action in cache
                     macro_critic_val = self.critic(obs).detach().flatten() # Poll critic network to value loss calc
                     macro_obs_np = obs_np # Store numpy observations in cache
-                    macro_reward = 0 # reset macro reward value
+                    macro_rewards = [] # reset raw per-step reward for macro action
                 else:
-                    macro_action_queue_length -= 1 # Reduce action queue counter accordingly
+                    remaining_macro_action_queue_length -= 1 # Reduce action queue counter accordingly
                     # Poll a new action set only for factories
                     lux_action_dict = factory_action_parser(self.env, obs_dict, factory_controller) 
                     
@@ -252,7 +269,7 @@ class PPO:
                 
                 done = done["player_0"]
                 
-                macro_reward += rew # increase macro reward
+                macro_rewards.append(rew) # store macro reward for each step
                 
                 # Store new observation dict for conversion on next loop
                 obs_dict = copy.deepcopy(obs)
@@ -263,10 +280,12 @@ class PPO:
                 # Convert numpy obs to torch tensor for critic
                 obs = torch.tensor(obs_np, dtype=torch.float)
 
-                if macro_action_queue_length <= 0 or done:
-                    # Collect obs
+                if remaining_macro_action_queue_length <= 0 or done:
+                    # Discount macro action rewards to properly match discounted rewards
+                    macro_reward = sum(self.gamma ** i * r for i, r in enumerate(macro_rewards))
+                    
+                    # Collect obs, reward, action and log prob
                     batch_obs.append(macro_obs_np)
-                    # Collect reward, action and log prob
                     batch_acts.append(macro_action)
                     batch_log_probs.append(macro_log_prob)
                     ep_rews.append(macro_reward)
@@ -337,8 +356,58 @@ class PPO:
         
         # Convert the batch_advantages list to a PyTorch tensor of type float
         return torch.tensor(batch_advantages, dtype=torch.float)
+    
+    # Save function for the model
+    def save(self, path="rbppo_checkpoint.pth"):
+        torch.save({
+            'actor': self.actor.state_dict(),
+            'critic': self.critic.state_dict(),
+            'actor_optim': self.actor_optim.state_dict(),
+            'critic_optim': self.critic_optim.state_dict(),
+            'role': self.role
+        }, path)
+        print(f"Model saved to {path}")
 
-# PPO Test code
+    # Load function for the model
+    def load(self, path="rbppo_checkpoint.pth"):
+        if not os.path.exists(path):
+            print(f"No checkpoint found at {path}")
+            return False
+        data = torch.load(path)
+        self.actor.load_state_dict(data['actor'])
+        self.critic.load_state_dict(data['critic'])
+        self.actor_optim.load_state_dict(data['actor_optim'])
+        self.critic_optim.load_state_dict(data['critic_optim'])
+        self.role = data.get('role', self.role)
+        print(f"Model loaded from {path}")
+        return True
+
+
+# PPO Training code
+reward_log_path = "training_rewards.json"
+reward_history = []
+
+# Load previous reward log if available
+if os.path.exists(reward_log_path):
+    with open(reward_log_path, "r") as f:
+        reward_history = json.load(f)
+
+count = 0
 env = LuxCustomEnv()
 model = PPO(env)
-model.learn(1000)
+
+try:
+    model.load("rbppo_checkpoint.pth")
+except FileNotFoundError:
+    print("No checkpoint found, starting fresh.")
+
+while count < 10:
+    avg_reward = model.learn(10000)
+    reward_history.append(avg_reward)
+
+    # Save model and reward history
+    model.save("rbppo_checkpoint.pth")
+    with open(reward_log_path, "w") as f:
+        json.dump(reward_history, f)
+        
+    count += 1

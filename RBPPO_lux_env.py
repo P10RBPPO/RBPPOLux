@@ -52,9 +52,6 @@ class LuxCustomEnv(gym.Env):
         # Possibly save reward here, as it returns reward for surviving 1000 turns or dying
         obs, _, done, truncated, info = self.lux_env.step(action)
         
-        # Collect metric stats for customized rewards
-        player = list(self.agents.keys())[0]
-        
         new_obs = torch.tensor(obs_parser(copy.deepcopy(obs), custom_env), dtype=torch.float)
         
         reward = reward_parser(prev_obs, new_obs, True)
