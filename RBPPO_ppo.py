@@ -23,7 +23,7 @@ from Controllers.RobotController import RobotController
 class PPO:
     def __init__(self, env):
         # If GPU, then use it, else use CPU
-        #self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # Init role array
         self.roles = ["Ice Miner", "Ore Miner"]
@@ -43,8 +43,8 @@ class PPO:
         self.critic = FeedForwardNN(self.obs_dim, 1)
         
         # Move networks to the GPU
-        #self.actor.to(self.device)
-        #self.critic.to(self.device)
+        self.actor.to(self.device)
+        self.critic.to(self.device)
         
         # Init Optimizer
         self.actor_optim = Adam(self.actor.parameters(), lr=self.lr)
@@ -73,6 +73,10 @@ class PPO:
         self.heavy_shaping = True               # Desired level of shaping (False = light, True = heavy)
     
     def learn(self, total_timesteps):
+        # Ensure the models are in training mode
+        self.actor.train()
+        self.critic.train()
+        
         t_so_far = 0 # Timestep counter
         
         batch_rews_all = [] # reward storage for full training batch
@@ -127,7 +131,6 @@ class PPO:
                     # Calculate ratios
                     logratios = curr_log_probs - mini_log_probs
                     ratios = torch.exp(logratios)
-                    approx_kl = ((ratios - 1) - logratios).mean()
                     
                     # Calculate surrogate losses
                     surr1 = ratios * mini_advantage
@@ -157,13 +160,22 @@ class PPO:
                     # Calculate gradients and perform backward propagation for critic network
                     self.critic_optim.zero_grad()
                     critic_loss.backward()
-                    nn.utils.clip_grad_norm_(self.actor.parameters(), self.max_grad_norm) # Gradient clipping to L2 norm
+                    nn.utils.clip_grad_norm_(self.critic.parameters(), self.max_grad_norm) # Gradient clipping to L2 norm
                     self.critic_optim.step()
                     
                     loss.append(actor_loss.detach())
                 
+                with torch.no_grad():
+                    self.actor.eval()
+                    logits = self.actor(batch_obs)
+                    dist = Categorical(logits=logits)
+                    new_log_probs = dist.log_prob(batch_acts)
+                    approx_kl = (batch_log_probs - new_log_probs).mean().item()
+                    self.actor.train()
+                
                 # Approximating KL Divergence
                 if approx_kl > self.target_kl:
+                    print(f"Early stopping at epoch due to high KL: {approx_kl:.5f}")
                     break # if KL is above threshold
 
         # Compute average episodic reward for this batch
@@ -174,6 +186,10 @@ class PPO:
 
                 
     def evaluate(self,batch_obs, batch_acts):
+        # Ensure the models are in evaluate mode
+        self.actor.eval()
+        self.critic.eval()
+        
         # Query critic network for a value V for each obs in batch_obs
         # Squeeze tensors into a single array instead of multiple arrays in an array
         # batch_obs has the shape (timesteps_per_batch, obs_dim), and we only want timesteps_per_batch, therefore we squeeze
@@ -230,7 +246,7 @@ class PPO:
             obs_np = obs_parser(obs_dict, self.env)
             
             # Convert numpy obs to torch tensor for critic
-            obs = torch.tensor(obs_np, dtype=torch.float)
+            obs = torch.tensor(obs_np, dtype=torch.float).to(self.device)
             
             # Value cache for macro actions to execute correctly
             remaining_macro_action_queue_length = 0   # initially empty
@@ -238,7 +254,7 @@ class PPO:
             macro_log_prob = None           # action log prob
             macro_critic_val = None         # critic value for value loss
             macro_obs_np = None             # observations at the time of macro action selection
-            macro_reward = 0                # reward collected during macro action
+            macro_rewards = []              # reward collected during macro action
             
             for ep_t in range(self.max_timesteps_per_episode):
                 # If episode is done, break
@@ -259,7 +275,7 @@ class PPO:
                     remaining_macro_action_queue_length = macro_action_length - 1 # subtract for the upcoming step
                     macro_action = action # store action index in cache
                     macro_log_prob = log_prob # Store log_prob for action in cache
-                    macro_critic_val = self.critic(obs).detach().flatten() # Poll critic network to value loss calc
+                    macro_critic_val = self.critic(obs).detach().flatten().squeeze(-1).item() # Poll critic network to value loss calc
                     macro_obs_np = obs_np # Store numpy observations in cache
                     macro_rewards = [] # reset raw per-step reward for macro action
                 else:
@@ -269,8 +285,9 @@ class PPO:
                     
                 
                 obs, rew, terminated, truncated, _ = self.env.step(lux_action_dict, obs, self.env, self.role, self.heavy_shaping)
-                done = terminated or truncated
                 
+                # Single agent setup for now, so this works as intended
+                done = terminated or truncated
                 done = done["player_0"]
                 
                 macro_rewards.append(rew) # store macro reward for each step
@@ -282,7 +299,7 @@ class PPO:
                 obs_np = obs_parser(obs_dict, self.env)
                 
                 # Convert numpy obs to torch tensor for critic
-                obs = torch.tensor(obs_np, dtype=torch.float)
+                obs = torch.tensor(obs_np, dtype=torch.float).to(self.device)
 
                 if remaining_macro_action_queue_length <= 0 or done:
                     # Discount macro action rewards to properly match discounted rewards
@@ -290,8 +307,8 @@ class PPO:
                     
                     # Collect obs, reward, action and log prob
                     batch_obs.append(macro_obs_np)
-                    batch_acts.append(macro_action)
-                    batch_log_probs.append(macro_log_prob)
+                    batch_acts.append(macro_action.cpu())
+                    batch_log_probs.append(macro_log_prob.cpu())
                     ep_rews.append(macro_reward)
                     ep_vals.append(macro_critic_val)
                 
@@ -302,9 +319,9 @@ class PPO:
             batch_dones.append(ep_dones)
             
         # Reshape data as tensors before returning
-        batch_obs = torch.tensor(np.array(batch_obs), dtype=torch.float)
-        batch_acts = torch.tensor(np.array(batch_acts), dtype=torch.float)
-        batch_log_probs = torch.tensor(np.array(batch_log_probs), dtype=torch.float)
+        batch_obs = torch.tensor(np.array(batch_obs), dtype=torch.float).to(self.device)
+        batch_acts = torch.tensor(np.array(batch_acts), dtype=torch.long).to(self.device)
+        batch_log_probs = torch.tensor(np.array(batch_log_probs), dtype=torch.float).to(self.device)
                 
         return batch_obs, batch_acts, batch_log_probs, batch_rews, batch_lens, batch_vals, batch_dones
     
@@ -359,7 +376,7 @@ class PPO:
             batch_advantages.extend(advantages)
         
         # Convert the batch_advantages list to a PyTorch tensor of type float
-        return torch.tensor(batch_advantages, dtype=torch.float)
+        return torch.tensor(batch_advantages, dtype=torch.float).to(self.device)
     
     # Save function for the model
     def save(self, path="rbppo_checkpoint.pth"):
@@ -380,6 +397,8 @@ class PPO:
         data = torch.load(path)
         self.actor.load_state_dict(data['actor'])
         self.critic.load_state_dict(data['critic'])
+        self.actor.to(self.device)
+        self.critic.to(self.device)
         self.actor_optim.load_state_dict(data['actor_optim'])
         self.critic_optim.load_state_dict(data['critic_optim'])
         self.role = data.get('role', self.role)
