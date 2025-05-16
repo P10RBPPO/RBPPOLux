@@ -4,6 +4,7 @@ import copy
 import gymnasium as gym
 import os
 import json
+import argparse
 
 from torch import nn
 from torch.distributions import Categorical
@@ -21,7 +22,7 @@ from Controllers.FactoryController import FactoryController
 from Controllers.RobotController import RobotController
 
 class PPO:
-    def __init__(self, env):
+    def __init__(self, env, role_index, heavy_shaping_param):
         # If GPU, then use it, else use CPU
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -29,7 +30,7 @@ class PPO:
         self.roles = ["Ice Miner", "Ore Miner"]
         
         # Init hyperparams
-        self._init_hyperparameters()
+        self._init_hyperparameters(role_index, heavy_shaping_param)
         
         # Get environment information
         self.env = env
@@ -50,7 +51,7 @@ class PPO:
         self.actor_optim = Adam(self.actor.parameters(), lr=self.lr)
         self.critic_optim = Adam(self.critic.parameters(), lr=self.lr)
         
-    def _init_hyperparameters(self):
+    def _init_hyperparameters(self, role_index, heavy_shaping_param):
         #  Default values for now
         self.timesteps_per_batch = 2000         # Timesteps per batch
         self.max_timesteps_per_episode = 1000   # Timesteps per episode    
@@ -69,8 +70,8 @@ class PPO:
         
         self.player = "player_0"                # Player identifier
         self.factory_first_turn = True                 # First turn flag for factory to stop factory actions while training
-        self.role = self.roles[0]               # Desired role for training
-        self.heavy_shaping = True               # Desired level of shaping (False = light, True = heavy)
+        self.role = self.roles[role_index]               # Desired role for training
+        self.heavy_shaping = heavy_shaping_param               # Desired level of shaping (False = light, True = heavy)
     
     def learn(self, total_timesteps):
         # Ensure the models are in training mode
@@ -378,18 +379,19 @@ class PPO:
         # Convert the batch_advantages list to a PyTorch tensor of type float
         return torch.tensor(batch_advantages, dtype=torch.float).to(self.device)
     
-    # Save function for the model
+    # Save function for the model - uses base path if no path is provided
     def save(self, path="rbppo_checkpoint.pth"):
         torch.save({
             'actor': self.actor.state_dict(),
             'critic': self.critic.state_dict(),
             'actor_optim': self.actor_optim.state_dict(),
             'critic_optim': self.critic_optim.state_dict(),
-            'role': self.role
+            'role': self.role,
+            'heavy_shaping': self.heavy_shaping
         }, path)
         print(f"Model saved to {path}")
 
-    # Load function for the model
+    # Load function for the model - uses base path if no path is provided
     def load(self, path="rbppo_checkpoint.pth"):
         if not os.path.exists(path):
             print(f"No checkpoint found at {path}")
@@ -402,11 +404,26 @@ class PPO:
         self.actor_optim.load_state_dict(data['actor_optim'])
         self.critic_optim.load_state_dict(data['critic_optim'])
         self.role = data.get('role', self.role)
+        self.heavy_shaping = data.get('heavy_shaping', self.heavy_shaping)
         print(f"Model loaded from {path}")
         return True
 
-def run_RBPPO():
-    reward_log_path = "training_rewards.json"
+def run_RBPPO(role_type, shaping_type):
+    if role_type == "ice" or role_type == "Ice":
+        role_string = "ice"
+        role_index = 0
+    if role_type == "ore" or role_type == "Ore":
+        role_string = "ore"
+        role_index = 1
+    
+    if shaping_type == "light" or shaping_type == "Light":
+        heavy_shaping = False
+        shaping_string = "light"
+    if shaping_type == "heavy" or shaping_type == "Heavy":
+        heavy_shaping = True
+        shaping_string = "heavy"
+    
+    reward_log_path = "training_rewards_" + role_string + "_" + shaping_string + ".json"
     reward_history = []
 
     # Load previous reward log if available
@@ -416,10 +433,10 @@ def run_RBPPO():
 
     count = 0
     env = LuxCustomEnv()
-    model = PPO(env)
+    model = PPO(env, role_index, heavy_shaping) # params: env, role_index [0, 1], heavy_shaping_param [True, False]
 
     try:
-        model.load("rbppo_checkpoint.pth")
+        model.load("rbppo_checkpoint_" + role_string + "_" + shaping_string + ".pth")
     except FileNotFoundError:
         print("No checkpoint found, starting fresh.")
 
@@ -428,11 +445,16 @@ def run_RBPPO():
         reward_history.append(avg_reward)
 
         # Save model and reward history
-        model.save("rbppo_checkpoint.pth")
+        model.save("rbppo_checkpoint_" + role_string + "_" + shaping_string + ".pth")
         with open(reward_log_path, "w") as f:
             json.dump(reward_history, f)
             
         count += 1
 
-# Execute the training code
-run_RBPPO()
+# Execute the training code with parsed arguments (caps insensitive) - usage: python RBPPO_ppo.py --role "ice" --shaping "heavy"
+parser = argparse.ArgumentParser(description="Run RBPPO training with specific role and shaping type.")
+parser.add_argument("--role", choices=["Ice", "ice", "Ore", "ore"], required=True, help="Choose which role to train (Ice Miner or Ore Miner).")
+parser.add_argument("--shaping", choices=["Light", "light", "Heavy", "heavy"], required=True, help="Reward shaping intensity.")
+
+args = parser.parse_args()
+run_RBPPO(args.role, args.shaping)
