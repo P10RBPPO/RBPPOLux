@@ -16,18 +16,19 @@ def obs_parser(obs, custom_env):
     
     # Observation space shape
     obs_vec = np.zeros(
-        12,
+        13,
     )
     
     # Factories
     factories = player_obs["factories"][agent]
-    factory_vec = np.zeros(2)
-    factory_cargo_vec = np.zeros(2)
+    factory_pos_vec = np.zeros(2)
+    factory_cargo_vec = np.zeros(3)
     for factory_key in factories.keys():
         factory = factories.get(factory_key)
-        factory_vec = np.array(factory["pos"]) / env_cfg.map_size # Normalized first friendly factory position
+        factory_pos_vec = np.array(factory["pos"]) / env_cfg.map_size # Normalized first friendly factory position
         factory_cargo_vec = np.array(
             [
+                factory["power"] / 1000,
                 factory["cargo"]["ice"] / 1000,
                 factory["cargo"]["ore"] / 1000,
             ]
@@ -43,7 +44,7 @@ def obs_parser(obs, custom_env):
         unit_cargo_space = env_cfg.ROBOTS[unit["unit_type"]].CARGO_SPACE
         unit_battery_cap = env_cfg.ROBOTS[unit["unit_type"]].BATTERY_CAPACITY
         
-        cargo_vec = np.array(
+        unit_cargo_vec = np.array(
             [
                 unit["power"] / unit_battery_cap,
                 unit["cargo"]["ice"] / unit_cargo_space,
@@ -58,11 +59,11 @@ def obs_parser(obs, custom_env):
         unit_pos = unit_pos_raw / env_cfg.map_size
         
         # Squared euclidean distance to factory closest to the unit (assuming 1 factory)
-        factory_distance = np.sum((factory_vec - unit_pos) ** 2)
+        factory_distance = np.sum((factory_pos_vec - unit_pos) ** 2)
         
         # Append unit information together
         unit_vec = np.concatenate(
-            [unit_pos, [unit_type], cargo_vec, [unit["team_id"]]], axis=-1
+            [unit_pos, [unit_type], unit_cargo_vec, [unit["team_id"]]], axis=-1
         )
         
         # Find the closest ice tile to the unit and return the squared euclidean distance to it

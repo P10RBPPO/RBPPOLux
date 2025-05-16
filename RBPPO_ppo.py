@@ -23,10 +23,10 @@ from Controllers.RobotController import RobotController
 class PPO:
     def __init__(self, env):
         # If GPU, then use it, else use CPU
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        #self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # Init role array
-        self.roles = ["Ice Miner", "Ore Miner", "Rubble Cleaner"]
+        self.roles = ["Ice Miner", "Ore Miner"]
         
         # Init hyperparams
         self._init_hyperparameters()
@@ -68,7 +68,9 @@ class PPO:
         self.lam = 0.98                         # Lambda parameter for GAE
         
         self.player = "player_0"                # Player identifier
+        self.factory_first_turn = True                 # First turn flag for factory to stop factory actions while training
         self.role = self.roles[0]               # Desired role for training
+        self.heavy_shaping = True               # Desired level of shaping (False = light, True = heavy)
     
     def learn(self, total_timesteps):
         t_so_far = 0 # Timestep counter
@@ -215,6 +217,8 @@ class PPO:
             
             robot_controller = RobotController(None, self.player)
             factory_controller = FactoryController(None, self.player)
+            # Reset flag before env reset to ensure it always has its first turn
+            self.factory_first_turn = True
             
             obs, _ = self.env.reset()
             done = False
@@ -261,10 +265,10 @@ class PPO:
                 else:
                     remaining_macro_action_queue_length -= 1 # Reduce action queue counter accordingly
                     # Poll a new action set only for factories
-                    lux_action_dict = factory_action_parser(self.env, obs_dict, factory_controller) 
+                    lux_action_dict, self.factory_first_turn = factory_action_parser(self.env, obs_dict, factory_controller, self.factory_first_turn) 
                     
                 
-                obs, rew, terminated, truncated, _ = self.env.step(lux_action_dict, obs, self.env)
+                obs, rew, terminated, truncated, _ = self.env.step(lux_action_dict, obs, self.env, self.role, self.heavy_shaping)
                 done = terminated or truncated
                 
                 done = done["player_0"]
@@ -320,7 +324,7 @@ class PPO:
         log_prob = dist.log_prob(action_index)
         
         # Create action dict to pass into Lux
-        lux_action_dict, macro_action_length = parse_all_actions(self.env, obs_dict, action_index.item(), self.role, robot_controller, factory_controller)
+        lux_action_dict, macro_action_length, self.factory_first_turn = parse_all_actions(self.env, obs_dict, action_index.item(), self.role, robot_controller, factory_controller, self.factory_first_turn)
         
         # possibly set in 1st round check, as no units exists yet to avoid skewed data
         
@@ -382,32 +386,34 @@ class PPO:
         print(f"Model loaded from {path}")
         return True
 
+def run_RBPPO():
+    reward_log_path = "training_rewards.json"
+    reward_history = []
 
-# PPO Training code
-reward_log_path = "training_rewards.json"
-reward_history = []
+    # Load previous reward log if available
+    if os.path.exists(reward_log_path):
+        with open(reward_log_path, "r") as f:
+            reward_history = json.load(f)
 
-# Load previous reward log if available
-if os.path.exists(reward_log_path):
-    with open(reward_log_path, "r") as f:
-        reward_history = json.load(f)
+    count = 0
+    env = LuxCustomEnv()
+    model = PPO(env)
 
-count = 0
-env = LuxCustomEnv()
-model = PPO(env)
+    try:
+        model.load("rbppo_checkpoint.pth")
+    except FileNotFoundError:
+        print("No checkpoint found, starting fresh.")
 
-try:
-    model.load("rbppo_checkpoint.pth")
-except FileNotFoundError:
-    print("No checkpoint found, starting fresh.")
+    while count < 1:
+        avg_reward = model.learn(1000)
+        reward_history.append(avg_reward)
 
-while count < 10:
-    avg_reward = model.learn(10000)
-    reward_history.append(avg_reward)
+        # Save model and reward history
+        model.save("rbppo_checkpoint.pth")
+        with open(reward_log_path, "w") as f:
+            json.dump(reward_history, f)
+            
+        count += 1
 
-    # Save model and reward history
-    model.save("rbppo_checkpoint.pth")
-    with open(reward_log_path, "w") as f:
-        json.dump(reward_history, f)
-        
-    count += 1
+# Execute the training code
+run_RBPPO()

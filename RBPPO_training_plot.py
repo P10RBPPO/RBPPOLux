@@ -5,7 +5,7 @@ with open("training_rewards.json", "r") as f:
     rewards = json.load(f)
 
 plt.plot(rewards)
-plt.xlabel("Training iteration (10000 steps each)")
+plt.xlabel("Training iteration (1000 steps each)")
 plt.ylabel("Average episodic reward")
 plt.title("Training Progress")
 plt.grid(True)

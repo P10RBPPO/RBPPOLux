@@ -8,7 +8,7 @@ class FeedForwardNN(nn.Module):
         super(FeedForwardNN, self).__init__()
         
         # Modular network size
-        network_dim = 60
+        network_dim = 65
         
         self.layer1 = nn.Linear(in_dim, network_dim)
         self.layer2 = nn.Linear(network_dim, network_dim)

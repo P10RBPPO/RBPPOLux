@@ -19,8 +19,8 @@ class LuxCustomEnv(gym.Env):
         
         self.env_cfg = self.lux_env.env_cfg
 
-        self.observation_space = spaces.Box(low=-999, high=999, shape=(12,), dtype=np.float32)
-        self.action_space = spaces.Discrete(6)
+        self.observation_space = spaces.Box(low=-999, high=999, shape=(13,), dtype=np.float32)
+        self.action_space = spaces.Discrete(7)
         
     def reset(self, **kwargs):
         """Reset function handling bidding & factory placement."""
@@ -39,7 +39,7 @@ class LuxCustomEnv(gym.Env):
         self.prev_obs = obs
         return obs, {}
     
-    def step(self, action, prev_obs, custom_env):
+    def step(self, action, prev_obs, custom_env, role, heavy_shaping):
         
         # Fill enemy factories to survive 1000 turns
         opp_agent = list(self.agents.keys())[1]
@@ -54,7 +54,7 @@ class LuxCustomEnv(gym.Env):
         
         new_obs = torch.tensor(obs_parser(copy.deepcopy(obs), custom_env), dtype=torch.float)
         
-        reward = reward_parser(prev_obs, new_obs, True)
+        reward = reward_parser(prev_obs, new_obs, role, heavy_shaping)
 
         return obs, reward, done, truncated, info
 
