@@ -590,10 +590,15 @@ class RobotController:
         """
         Picks up power from the factory.
         If no amount is specified, defaults to 20% of the factory's power.
+        Ensures that the unit's power does not exceed 3000.
         """
         # Pick up power from the factory
         factory = self.get_closest_factory_unit(unit, self.game_state)
         power_to_pickup = int(factory.power * 0.20) if amount is None else amount
+
+        # Ensure the unit's power does not exceed 3000
+        max_pickup = unit.unit_cfg.BATTERY_CAPACITY - unit.power
+        power_to_pickup = min(power_to_pickup, max_pickup)
 
         if power_to_pickup > 0 and factory.cargo.water > 0:
             return [unit.pickup(4, power_to_pickup, repeat=0, n=1)]
