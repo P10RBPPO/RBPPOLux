@@ -5,6 +5,7 @@ import gymnasium as gym
 import os
 import json
 import argparse
+import math
 
 from torch import nn
 from torch.distributions import Categorical
@@ -68,10 +69,11 @@ class PPO:
         self.target_kl = 0.02                   # KL Divergence threshold
         self.lam = 0.98                         # Lambda parameter for GAE
         
-        self.player = "player_0"                # Player identifier
-        self.factory_first_turn = True                 # First turn flag for factory to stop factory actions while training
-        self.role = self.roles[role_index]               # Desired role for training
-        self.heavy_shaping = heavy_shaping_param               # Desired level of shaping (False = light, True = heavy)
+        self.player = "player_0"                    # Player identifier
+        self.factory_first_turn = True              # First turn flag for factory to stop factory actions while training
+        self.role = self.roles[role_index]          # Desired role for training
+        self.heavy_shaping = heavy_shaping_param    # Desired level of shaping (False = light, True = heavy)
+        self.epoch = 0                              # Trained epoch counter
     
     def learn(self, total_timesteps):
         # Ensure the models are in training mode
@@ -380,14 +382,15 @@ class PPO:
         return torch.tensor(batch_advantages, dtype=torch.float).to(self.device)
     
     # Save function for the model - uses base path if no path is provided
-    def save(self, path="rbppo_checkpoint.pth"):
+    def save(self, epoch, path="rbppo_checkpoint.pth"):
         torch.save({
             'actor': self.actor.state_dict(),
             'critic': self.critic.state_dict(),
             'actor_optim': self.actor_optim.state_dict(),
             'critic_optim': self.critic_optim.state_dict(),
             'role': self.role,
-            'heavy_shaping': self.heavy_shaping
+            'heavy_shaping': self.heavy_shaping,
+            'epoch': epoch
         }, path)
         print(f"Model saved to {path}")
 
@@ -404,6 +407,7 @@ class PPO:
         self.actor_optim.load_state_dict(data['actor_optim'])
         self.critic_optim.load_state_dict(data['critic_optim'])
         self.role = data.get('role', self.role)
+        self.epoch = data.get('epoch', self.epoch)
         self.heavy_shaping = data.get('heavy_shaping', self.heavy_shaping)
         print(f"Model loaded from {path}")
         return True
@@ -431,25 +435,28 @@ def run_RBPPO(role_type, shaping_type):
         with open(reward_log_path, "r") as f:
             reward_history = json.load(f)
 
-    count = 0
     env = LuxCustomEnv()
     model = PPO(env, role_index, heavy_shaping) # params: env, role_index [0, 1], heavy_shaping_param [True, False]
-
+    epoch = 0
+    
     try:
-        model.load("rbppo_checkpoint_" + role_string + "_" + shaping_string + ".pth")
+        model.load("models/rbppo_checkpoint_" + role_string + "_" + shaping_string + ".pth")
+        epoch = model.epoch
     except FileNotFoundError:
         print("No checkpoint found, starting fresh.")
 
-    while count < 1:
-        avg_reward = model.learn(1000)
+    while True:
+        avg_reward = model.learn(10000)
         reward_history.append(avg_reward)
 
         # Save model and reward history
-        model.save("rbppo_checkpoint_" + role_string + "_" + shaping_string + ".pth")
+        epoch += 10000
+        model.save(epoch, "models/rbppo_checkpoint_" + role_string + "_" + shaping_string + ".pth")
+        if (epoch > 0) and (math.log10(epoch) % 1 == 0):
+            model.save(epoch, "models/rbppo_checkpoint_" + role_string + "_" + shaping_string + "_" + str(epoch) + ".pth")
         with open(reward_log_path, "w") as f:
             json.dump(reward_history, f)
             
-        count += 1
 
 # Execute the training code with parsed arguments (caps insensitive) - usage: python RBPPO_ppo.py --role "ice" --shaping "heavy"
 parser = argparse.ArgumentParser(description="Run RBPPO training with specific role and shaping type.")
