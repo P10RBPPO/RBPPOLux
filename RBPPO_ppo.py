@@ -66,9 +66,11 @@ class PPO:
         self.max_grad_norm = 0.5                # Gradient clipping value
         self.num_minibatches = 5                # Minibatch size
         self.ent_coef = 0                       # Entropy coefficient for Entropy Regularization
-        self.target_kl = 0.02                   # KL Divergence threshold
         self.lam = 0.98                         # Lambda parameter for GAE
         
+        self.target_kl = 0.02 if not heavy_shaping_param else 0.2   # KL Divergence threshold - higher for heavy shaping due to higher variance
+        self.kl_coef = 1.0 if self.heavy_shaping else 0.5           # Scaling factor for KL penalty 
+
         self.player = "player_0"                    # Player identifier
         self.factory_first_turn = True              # First turn flag for factory to stop factory actions while training
         self.role = self.roles[role_index]          # Desired role for training
@@ -154,6 +156,13 @@ class PPO:
                     # Discount entropy loss by given coefficient
                     actor_loss = actor_loss - self.ent_coef * entropy_loss
                     
+                    # Add KL penalty to actor loss if above KL threshold
+                    kl_penalty = 0
+                    if approx_kl > self.target_kl:
+                        kl_penalty = self.kl_coef * (approx_kl - self.target_kl)
+                        actor_loss += kl_penalty
+                        print(f"KL: {approx_kl:.5f} (Penalty: {kl_penalty:.5f})")
+
                     # Calculate gradients and perform backward propagation for actor network
                     self.actor_optim.zero_grad()
                     actor_loss.backward(retain_graph=True) # retain_graph=True
@@ -174,12 +183,7 @@ class PPO:
                     dist = Categorical(logits=logits)
                     new_log_probs = dist.log_prob(batch_acts)
                     approx_kl = (batch_log_probs - new_log_probs).mean().item()
-                    self.actor.train()
-                
-                # Approximating KL Divergence
-                if approx_kl > self.target_kl:
-                    print(f"Early stopping at epoch due to high KL: {approx_kl:.5f}")
-                    break # if KL is above threshold
+                    self.actor.train()      
 
         # Compute average episodic reward for this batch
         ep_rewards = [sum(ep_rews) for ep_rews in batch_rews_all]
