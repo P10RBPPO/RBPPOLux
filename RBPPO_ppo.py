@@ -90,7 +90,7 @@ class PPO:
 
         
         while t_so_far < total_timesteps:
-            batch_obs, batch_acts, batch_log_probs, batch_rews, batch_lens, batch_vals, batch_dones = self.rollout()
+            batch_obs, batch_acts, batch_log_probs, batch_rews, batch_lens, batch_vals, batch_dones, batch_logits = self.rollout()
             
             # Save batch rewards
             batch_rews_all.extend(batch_rews)
@@ -126,12 +126,17 @@ class PPO:
                 for start in range(0, step, minibatch_size):
                     end = start + minibatch_size
                     idx = inds[start:end]
+                    
                     # Extract data at sampled indicies
                     mini_obs = batch_obs[idx]
                     mini_acts = batch_acts[idx]
                     mini_log_probs = batch_log_probs[idx]
                     mini_advantage = A_k[idx]
                     mini_rtgs = batch_rtgs[idx]
+                    
+                    mini_old_logits = batch_logits[idx]
+                    mini_new_logits = self.actor(mini_obs)
+
                     
                     # Calculate V_phi and pi_theta(a_t | s_t)
                     V, curr_log_probs, entropy = self.evaluate(mini_obs, mini_acts)
@@ -140,9 +145,16 @@ class PPO:
                     logratios = curr_log_probs - mini_log_probs
                     ratios = torch.exp(logratios)
                     
-                    approx_kl = ((ratios - 1) - logratios).mean()  # KL divergence estimate
+                    # Setup action distributions for KL calculation
+                    old_dist = Categorical(logits=mini_old_logits)
+                    new_dist = Categorical(logits=mini_new_logits)
+
+                    # KL divergence per element: KL(old || new)
+                    approx_kl = torch.distributions.kl.kl_divergence(old_dist, new_dist).mean()
                     approx_kl = torch.clamp(approx_kl, max=1.0)
-                    kl_values.append(approx_kl.item())             # Log KL for monitoring
+                    kl_values.append(approx_kl.item())
+                    
+                    print(f"KL: {approx_kl.item():.10f}")
                     
                     # Calculate surrogate losses
                     surr1 = ratios * mini_advantage
@@ -205,24 +217,23 @@ class PPO:
         self.actor.eval()
         self.critic.eval()
         
-        with torch.no_grad():
-            # Query critic network for a value V for each obs in batch_obs
-            # Squeeze tensors into a single array instead of multiple arrays in an array
-            # batch_obs has the shape (timesteps_per_batch, obs_dim), and we only want timesteps_per_batch, therefore we squeeze
-            V = self.critic(batch_obs).squeeze(-1) 
-            
-            # Calculate log_prob of batch actions using most recent actor network
-            # Query the actor network for raw logits (non-softmaxed)
-            logits = self.actor(batch_obs)
-            
-            # Categorical Distribution
-            dist = Categorical(logits=logits)
-            
-            # Get log probability of batch actions
-            log_probs = dist.log_prob(batch_acts)
-            
-            # Get entropy of distrubution
-            entropy = dist.entropy() # shape: (batch_size,)
+        # Query critic network for a value V for each obs in batch_obs
+        # Squeeze tensors into a single array instead of multiple arrays in an array
+        # batch_obs has the shape (timesteps_per_batch, obs_dim), and we only want timesteps_per_batch, therefore we squeeze
+        V = self.critic(batch_obs).squeeze(-1) 
+        
+        # Calculate log_prob of batch actions using most recent actor network
+        # Query the actor network for raw logits (non-softmaxed)
+        logits = self.actor(batch_obs)
+        
+        # Categorical Distribution
+        dist = Categorical(logits=logits)
+        
+        # Get log probability of batch actions
+        log_probs = dist.log_prob(batch_acts)
+        
+        # Get entropy of distrubution
+        entropy = dist.entropy() # shape: (batch_size,)
             
         # Restore training states
         if actor_was_training:
@@ -243,6 +254,8 @@ class PPO:
         batch_lens = []             # episodic lengths in batch
         batch_vals = []             # batch critic values
         batch_dones = []            # Done flags
+        
+        batch_logits = []           # logits for KL divergence calculation 
         
         # Number of timesteps run so far this batch    
         t = 0
@@ -294,6 +307,11 @@ class PPO:
                     # Get action from Categorical Distribution sampling (Softmax distribution) along with its log_probs and converted lux_action dict
                     action, log_prob, lux_action_dict, macro_action_length = self.get_action(obs, obs_dict, robot_controller, factory_controller)
 
+                    # Cache logits
+                    logits = self.actor(obs.unsqueeze(0))  # [1, obs_dim] for a single obs
+                    batch_logits.append(logits.squeeze(0).detach().cpu())  # detach + move to CPU
+                    
+                    # Setup Macro actions
                     remaining_macro_action_queue_length = macro_action_length - 1 # subtract for the upcoming step
                     macro_action = action # store action index in cache
                     macro_log_prob = log_prob # Store log_prob for action in cache
@@ -344,8 +362,10 @@ class PPO:
         batch_obs = torch.tensor(np.array(batch_obs), dtype=torch.float).to(self.device)
         batch_acts = torch.tensor(np.array(batch_acts), dtype=torch.long).to(self.device)
         batch_log_probs = torch.tensor(np.array(batch_log_probs), dtype=torch.float).to(self.device)
-                
-        return batch_obs, batch_acts, batch_log_probs, batch_rews, batch_lens, batch_vals, batch_dones
+        
+        batch_logits = torch.stack(batch_logits).to(self.device)
+        
+        return batch_obs, batch_acts, batch_log_probs, batch_rews, batch_lens, batch_vals, batch_dones, batch_logits
     
     
     def get_action(self, obs, obs_dict, robot_controller, factory_controller):
