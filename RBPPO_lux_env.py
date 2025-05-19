@@ -49,6 +49,15 @@ class LuxCustomEnv(gym.Env):
             factory = opp_factories[factory_key]
             factory.cargo.water = 1000
         
+        # Fill friendly factory to survive 1000 turns if role is Ore miner (so it can survive 1000 turns to train in)
+        if role == "Ore Miner":
+            agent = list(self.agents.keys())[0]
+            factories = self.lux_env.state.factories[agent]
+            
+            for factory_key in factories.keys():
+                factory = factories[factory_key]
+                factory.cargo.water = 1000
+        
         # Possibly save reward here, as it returns reward for surviving 1000 turns or dying
         obs, _, done, truncated, info = self.lux_env.step(action)
         
