@@ -54,18 +54,18 @@ class PPO:
         
     def _init_hyperparameters(self, role_index, heavy_shaping_param):
         #  Default values for now
-        self.timesteps_per_batch = 2000         # Timesteps per batch
+        self.timesteps_per_batch = 5000         # Timesteps per batch
         self.max_timesteps_per_episode = 1000   # Timesteps per episode    
         
-        self.n_updates_per_iteration = 5        # Epoch count
+        self.n_updates_per_iteration = 10       # Epoch count (# times full set of minibatches are looped over)
         self.clip = 0.2                         # Recommended clip threshold for PPO in PPO paper
         self.gamma = 0.95                       # Discount value
-        self.lr = 0.005                         # Learning rate
+        self.lr = 0.0001                        # Learning rate
         
         # Optimization hyperparams
         self.max_grad_norm = 0.5                # Gradient clipping value
-        self.num_minibatches = 5                # Minibatch size
-        self.ent_coef = 0                       # Entropy coefficient for Entropy Regularization
+        self.num_minibatches = 10               # Minibatch size
+        self.ent_coef = 0.1                     # Entropy coefficient for Entropy Regularization (higher = more exploration)
         self.lam = 0.98                         # Lambda parameter for GAE
         
         self.target_kl = 0.04 if not heavy_shaping_param else 0.2   # KL Divergence threshold - higher for heavy shaping due to higher variance
@@ -113,14 +113,6 @@ class PPO:
             loss = []
             
             for _ in range(self.n_updates_per_iteration):
-                # Learning rate annealing - Dynamic learning rate that changes over time
-                frac = (t_so_far - 1.0) / total_timesteps
-                new_lr = self.lr * (1.0 - frac)
-                # Ensure it cannot drop below 0
-                new_lr = max(new_lr, 0.0)
-                self.actor_optim.param_groups[0]["lr"] = new_lr
-                self.critic_optim.param_groups[0]["lr"] = new_lr
-                
                 # Mini-batch Update
                 np.random.shuffle(inds) # Shuffle index
                 for start in range(0, step, minibatch_size):
@@ -153,8 +145,6 @@ class PPO:
                     approx_kl = torch.distributions.kl.kl_divergence(old_dist, new_dist).mean()
                     approx_kl = torch.clamp(approx_kl, max=1.0)
                     kl_values.append(approx_kl.item())
-                    
-                    print(f"KL: {approx_kl.item():.10f}")
                     
                     # Calculate surrogate losses
                     surr1 = ratios * mini_advantage
@@ -466,23 +456,23 @@ def run_RBPPO(role_type, shaping_type):
         heavy_shaping = True
         shaping_string = "heavy"
     
-    reward_log_path = "training_rewards_" + role_string + "_" + shaping_string + ".json"
-    reward_history = []
-    kl_log_path = "training_kl_" + role_string + "_" + shaping_string + ".json"
-    kl_history = []
-    entropy_log_path = "training_entropy_" + role_string + "_" + shaping_string + ".json"
-    entropy_history = []
+    avg_reward_log_path = "avg_training_rewards_" + role_string + "_" + shaping_string + ".json"
+    avg_reward_history = []
+    avg_kl_log_path = "avg_training_kl_" + role_string + "_" + shaping_string + ".json"
+    avg_kl_history = []
+    avg_entropy_log_path = "avg_training_entropy_" + role_string + "_" + shaping_string + ".json"
+    avg_entropy_history = []
 
     # Load previous logs if available
-    if os.path.exists(reward_log_path):
-        with open(reward_log_path, "r") as f:
-            reward_history = json.load(f)
-    if os.path.exists(kl_log_path):
-        with open(kl_log_path, "r") as f:
-            kl_history = json.load(f)
-    if os.path.exists(entropy_log_path):
-        with open(entropy_log_path, "r") as f:
-            entropy_history = json.load(f)
+    if os.path.exists(avg_reward_log_path):
+        with open(avg_reward_log_path, "r") as f:
+            avg_reward_history = json.load(f)
+    if os.path.exists(avg_kl_log_path):
+        with open(avg_kl_log_path, "r") as f:
+            avg_kl_history = json.load(f)
+    if os.path.exists(avg_entropy_log_path):
+        with open(avg_entropy_log_path, "r") as f:
+            avg_entropy_history = json.load(f)
 
 
     env = LuxCustomEnv()
@@ -497,9 +487,9 @@ def run_RBPPO(role_type, shaping_type):
 
     while True:
         avg_reward, avg_kl, avg_entropy = model.learn(10000)
-        reward_history.append(avg_reward)
-        kl_history.append(avg_kl)
-        entropy_history.append(avg_entropy)
+        avg_reward_history.append(avg_reward)
+        avg_kl_history.append(avg_kl)
+        avg_entropy_history.append(avg_entropy)
         
         # Save model
         epoch += 10000
@@ -510,12 +500,12 @@ def run_RBPPO(role_type, shaping_type):
             model.save(epoch, "models/rbppo_checkpoint_" + role_string + "_" + shaping_string + "_" + str(epoch) + ".pth")
         
         # Save log information (reward, kl, entropy)
-        with open(reward_log_path, "w") as f:
-            json.dump(reward_history, f)
-        with open(kl_log_path, "w") as f:
-            json.dump(kl_history, f)
-        with open(entropy_log_path, "w") as f:
-            json.dump(entropy_history, f)
+        with open(avg_reward_log_path, "w") as f:
+            json.dump(avg_reward_history, f)
+        with open(avg_kl_log_path, "w") as f:
+            json.dump(avg_kl_history, f)
+        with open(avg_entropy_log_path, "w") as f:
+            json.dump(avg_entropy_history, f)
 
 # Execute the training code with parsed arguments (caps insensitive) - usage: python RBPPO_ppo.py --role "ice" --shaping "heavy"
 parser = argparse.ArgumentParser(description="Run RBPPO training with specific role and shaping type.")
