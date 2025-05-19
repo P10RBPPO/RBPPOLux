@@ -22,7 +22,7 @@ def run_RBPPO_plot(arg_role, arg_shaping):
     plt.ylabel("Average episodic reward")
     plt.title("Training Progress")
     plt.grid(True)
-    plt.savefig("ppo_training_plot_" + role_string + "_" + shaping_string + ".png")
+    plt.savefig("training_graphs/ppo_training_plot_" + role_string + "_" + shaping_string + ".png")
     
     
 # Execute the training code with parsed arguments (caps insensitive) - usage: python RBPPO_ppo.py --role "ice" --shaping "heavy"

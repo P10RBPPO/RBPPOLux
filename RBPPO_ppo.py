@@ -68,8 +68,8 @@ class PPO:
         self.ent_coef = 0                       # Entropy coefficient for Entropy Regularization
         self.lam = 0.98                         # Lambda parameter for GAE
         
-        self.target_kl = 0.02 if not heavy_shaping_param else 0.2   # KL Divergence threshold - higher for heavy shaping due to higher variance
-        self.kl_coef = 1.0 if self.heavy_shaping else 0.5           # Scaling factor for KL penalty 
+        self.target_kl = 0.04 if not heavy_shaping_param else 0.2   # KL Divergence threshold - higher for heavy shaping due to higher variance
+        self.kl_coef = 1.0 if not heavy_shaping_param else 0.5      # Scaling factor for KL penalty 
 
         self.player = "player_0"                    # Player identifier
         self.factory_first_turn = True              # First turn flag for factory to stop factory actions while training
@@ -84,7 +84,10 @@ class PPO:
         
         t_so_far = 0 # Timestep counter
         
-        batch_rews_all = [] # reward storage for full training batch
+        batch_rews_all = [] # reward cache for full training batch
+        kl_values = []      # kl value cache for full training batch
+        entropy_values = [] # entropy value cache for full training batch
+
         
         while t_so_far < total_timesteps:
             batch_obs, batch_acts, batch_log_probs, batch_rews, batch_lens, batch_vals, batch_dones = self.rollout()
@@ -137,6 +140,10 @@ class PPO:
                     logratios = curr_log_probs - mini_log_probs
                     ratios = torch.exp(logratios)
                     
+                    approx_kl = ((ratios - 1) - logratios).mean()  # KL divergence estimate
+                    approx_kl = torch.clamp(approx_kl, max=1.0)
+                    kl_values.append(approx_kl.item())             # Log KL for monitoring
+                    
                     # Calculate surrogate losses
                     surr1 = ratios * mini_advantage
                     surr2 = torch.clamp(ratios, 1 - self.clip, 1 + self.clip) * mini_advantage
@@ -153,6 +160,8 @@ class PPO:
                 
                     # Entrophy Regularization
                     entropy_loss = entropy.mean()
+                    entropy_values.append(entropy_loss.item())  # Log entropy
+                    
                     # Discount entropy loss by given coefficient
                     actor_loss = actor_loss - self.ent_coef * entropy_loss
                     
@@ -175,45 +184,51 @@ class PPO:
                     nn.utils.clip_grad_norm_(self.critic.parameters(), self.max_grad_norm) # Gradient clipping to L2 norm
                     self.critic_optim.step()
                     
-                    loss.append(actor_loss.detach())
-                
-                with torch.no_grad():
-                    self.actor.eval()
-                    logits = self.actor(batch_obs)
-                    dist = Categorical(logits=logits)
-                    new_log_probs = dist.log_prob(batch_acts)
-                    approx_kl = (batch_log_probs - new_log_probs).mean().item()
-                    self.actor.train()      
+                    loss.append(actor_loss.detach())     
 
         # Compute average episodic reward for this batch
         ep_rewards = [sum(ep_rews) for ep_rews in batch_rews_all]
         avg_reward = sum(ep_rewards) / len(ep_rewards)
+        
+        # Compute average episodic kl and entropy for this batch
+        avg_kl = sum(kl_values) / len(kl_values) if kl_values else 0.0
+        avg_entropy = sum(entropy_values) / len(entropy_values) if entropy_values else 0.0
 
-        return avg_reward
-
+        return avg_reward, avg_kl, avg_entropy
                 
     def evaluate(self,batch_obs, batch_acts):
+        # Store current model mode
+        actor_was_training = self.actor.training
+        critic_was_training = self.critic.training
+        
         # Ensure the models are in evaluate mode
         self.actor.eval()
         self.critic.eval()
         
-        # Query critic network for a value V for each obs in batch_obs
-        # Squeeze tensors into a single array instead of multiple arrays in an array
-        # batch_obs has the shape (timesteps_per_batch, obs_dim), and we only want timesteps_per_batch, therefore we squeeze
-        V = self.critic(batch_obs).squeeze(-1) 
-        
-        # Calculate log_prob of batch actions using most recent actor network
-        # Query the actor network for raw logits (non-softmaxed)
-        logits = self.actor(batch_obs)
-        
-        # Categorical Distribution
-        dist = Categorical(logits=logits)
-        
-        # Get log probability of batch actions
-        log_probs = dist.log_prob(batch_acts)
-        
-        # Get entropy of distrubution
-        entropy = dist.entropy() # shape: (batch_size,)
+        with torch.no_grad():
+            # Query critic network for a value V for each obs in batch_obs
+            # Squeeze tensors into a single array instead of multiple arrays in an array
+            # batch_obs has the shape (timesteps_per_batch, obs_dim), and we only want timesteps_per_batch, therefore we squeeze
+            V = self.critic(batch_obs).squeeze(-1) 
+            
+            # Calculate log_prob of batch actions using most recent actor network
+            # Query the actor network for raw logits (non-softmaxed)
+            logits = self.actor(batch_obs)
+            
+            # Categorical Distribution
+            dist = Categorical(logits=logits)
+            
+            # Get log probability of batch actions
+            log_probs = dist.log_prob(batch_acts)
+            
+            # Get entropy of distrubution
+            entropy = dist.entropy() # shape: (batch_size,)
+            
+        # Restore training states
+        if actor_was_training:
+            self.actor.train()
+        if critic_was_training:
+            self.critic.train()
         
         # Return predicted V values and log_probs
         return V, log_probs, entropy
@@ -433,11 +448,22 @@ def run_RBPPO(role_type, shaping_type):
     
     reward_log_path = "training_rewards_" + role_string + "_" + shaping_string + ".json"
     reward_history = []
+    kl_log_path = "training_kl_" + role_string + "_" + shaping_string + ".json"
+    kl_history = []
+    entropy_log_path = "training_entropy_" + role_string + "_" + shaping_string + ".json"
+    entropy_history = []
 
-    # Load previous reward log if available
+    # Load previous logs if available
     if os.path.exists(reward_log_path):
         with open(reward_log_path, "r") as f:
             reward_history = json.load(f)
+    if os.path.exists(kl_log_path):
+        with open(kl_log_path, "r") as f:
+            kl_history = json.load(f)
+    if os.path.exists(entropy_log_path):
+        with open(entropy_log_path, "r") as f:
+            entropy_history = json.load(f)
+
 
     env = LuxCustomEnv()
     model = PPO(env, role_index, heavy_shaping) # params: env, role_index [0, 1], heavy_shaping_param [True, False]
@@ -450,17 +476,26 @@ def run_RBPPO(role_type, shaping_type):
         print("No checkpoint found, starting fresh.")
 
     while True:
-        avg_reward = model.learn(10000)
+        avg_reward, avg_kl, avg_entropy = model.learn(10000)
         reward_history.append(avg_reward)
-
-        # Save model and reward history
+        kl_history.append(avg_kl)
+        entropy_history.append(avg_entropy)
+        
+        # Save model
         epoch += 10000
         model.save(epoch, "models/rbppo_checkpoint_" + role_string + "_" + shaping_string + ".pth")
+        
+        # Save model at certain milestones in their own files
         if (epoch > 0) and (math.log10(epoch) % 1 == 0):
             model.save(epoch, "models/rbppo_checkpoint_" + role_string + "_" + shaping_string + "_" + str(epoch) + ".pth")
+        
+        # Save log information (reward, kl, entropy)
         with open(reward_log_path, "w") as f:
             json.dump(reward_history, f)
-            
+        with open(kl_log_path, "w") as f:
+            json.dump(kl_history, f)
+        with open(entropy_log_path, "w") as f:
+            json.dump(entropy_history, f)
 
 # Execute the training code with parsed arguments (caps insensitive) - usage: python RBPPO_ppo.py --role "ice" --shaping "heavy"
 parser = argparse.ArgumentParser(description="Run RBPPO training with specific role and shaping type.")
