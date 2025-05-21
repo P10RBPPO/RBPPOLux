@@ -39,7 +39,7 @@ class Agent():
         game_state = obs_to_game_state(step, self.env_cfg, obs)
 
         # Control units using the RobotController
-        robot_actions = self.robot_controller.control_units(game_state, self.ice_model, self.ore_model, obs, self.lux_env_variables)
+        robot_actions = self.robot_controller.control_units(game_state, self.ice_model, self.ore_model, obs)
 
         # Handle factory actions using the FactoryController
         factory_actions = self.factory_controller.handle_factory_actions(self.player, self.env_cfg, game_state)

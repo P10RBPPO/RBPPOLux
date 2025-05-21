@@ -135,7 +135,7 @@ class RobotController:
                 # Add new units
                 self.add_unit(unit_id, unit, unit.unit_type)
 
-    def control_units(self, game_state, ice_model, ore_model, obs_dict, lux_env):
+    def control_units(self, game_state, ice_model, ore_model, obs_dict):
         """
         Controls all units and updates the actions dictionary.
         """
@@ -152,9 +152,10 @@ class RobotController:
             if len(unit.action_queue) == 0:
                 role = self.unit_roles.get(unit_id, None)
                 
-                factory_unit = self.get_closest_factory_unit(unit, game_state) # placeholder, change 
+                assigned_factory = self.robot_to_factory[unit_id]
+                factory_unit = self.assigned_factory_to_factory_unit(assigned_factory)
                 
-                obs = torch.tensor(live_obs_parser(obs_dict, lux_env, unit, factory_unit), dtype=torch.float)
+                obs = torch.tensor(live_obs_parser(obs_dict, unit, factory_unit), dtype=torch.float)
                 
                 if role == "Ice Miner":
                     #actions[unit_id] = self.control_ice_miner(unit_id, unit, ice_tile_locations)
