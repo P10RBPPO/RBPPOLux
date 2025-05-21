@@ -20,7 +20,8 @@ class RobotController:
         self.claimed_tiles = {}  # Tracks which ice tiles are claimed by which robot
         self.robot_to_factory = {}  # Tracks which factory each robot is assigned to
         self.factory_role_state = {}  # Tracks the last assigned role for each factory
-
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu") # Set correct device
+        
     def add_unit(self, unit_id, unit, unit_type):
         """
         Adds a new unit to the controller and assigns it a role and factory.
@@ -154,17 +155,15 @@ class RobotController:
                 
                 assigned_factory = self.robot_to_factory[unit_id]
                 factory_unit = self.assigned_factory_to_factory_unit(assigned_factory)
-                
-                obs = torch.tensor(live_obs_parser(obs_dict, unit, factory_unit), dtype=torch.float)
+                obs_np = live_obs_parser(obs_dict, unit, factory_unit)
+                obs = torch.tensor(obs_np, dtype=torch.float).to(self.device)
                 
                 if role == "Ice Miner":
                     #actions[unit_id] = self.control_ice_miner(unit_id, unit, ice_tile_locations)
-                    with torch.no_grad:
-                        actions[unit_id] = ice_model.get_live_action(obs, unit, self)
+                    actions[unit_id] = ice_model.get_live_action(obs, unit, self)
                 elif role == "Ore Miner":
                     #actions[unit_id] = self.control_ore_miner(unit_id, unit, ore_tile_locations)
-                    with torch.no_grad:
-                        actions[unit_id] = ore_model.get_live_action(obs, unit, self)
+                    actions[unit_id] = ore_model.get_live_action(obs, unit, self)
                 elif role == "Rubble Cleaner":
                     actions[unit_id] = self.control_rubble_cleaner(unit_id, unit, rubble_tile_locations)
                 else:

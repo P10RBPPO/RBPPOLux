@@ -1,3 +1,4 @@
+import sys
 import numpy as np
 import torch
 
@@ -85,10 +86,8 @@ def obs_parser(obs, custom_env):
     return obs_vec
 
 
-def live_obs_parser(obs, robot_unit, factory_unit):
-    agent = "player_0"
+def live_obs_parser(player_obs, robot_unit, factory_unit):
     env_cfg = robot_unit.env_cfg
-    player_obs = obs[agent]
     
     # Ice map
     ice_map = player_obs["board"]["ice"]
@@ -129,7 +128,7 @@ def live_obs_parser(obs, robot_unit, factory_unit):
         ]
     )
     
-    unit_type = robot_unit.unit_type
+    unit_type = (0 if robot_unit.unit_type == "LIGHT" else 1)
     
     # Raw and normalized unit position
     unit_pos_raw = np.array(robot_unit.pos)

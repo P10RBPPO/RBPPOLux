@@ -1,3 +1,4 @@
+import sys
 import torch
 import numpy as np
 import copy
@@ -165,7 +166,7 @@ class PPO:
                     if approx_kl > self.target_kl:
                         kl_penalty = self.kl_coef * (approx_kl - self.target_kl)
                         actor_loss += kl_penalty
-                        print(f"KL: {approx_kl:.5f} (Penalty: {kl_penalty:.5f})")
+                        print(f"KL: {approx_kl:.5f} (Penalty: {kl_penalty:.5f})", file=sys.stderr)
 
                     # Calculate gradients and perform backward propagation for actor network
                     self.actor_optim.zero_grad()
@@ -434,12 +435,12 @@ class PPO:
             'heavy_shaping': self.heavy_shaping,
             'epoch': epoch
         }, path)
-        print(f"Model saved to {path}")
+        print(f"Model saved to {path}", file=sys.stderr)
 
     # Load function for the model - uses base path if no path is provided
     def load(self, path="rbppo_checkpoint.pth"):
         if not os.path.exists(path):
-            print(f"No checkpoint found at {path}")
+            print(f"No checkpoint found at {path}", file=sys.stderr)
             return False
         data = torch.load(path)
         self.actor.load_state_dict(data['actor'])
@@ -451,5 +452,5 @@ class PPO:
         self.role = data.get('role', self.role)
         self.epoch = data.get('epoch', self.epoch)
         self.heavy_shaping = data.get('heavy_shaping', self.heavy_shaping)
-        print(f"Model loaded from {path}")
+        print(f"Model loaded from {path}", file=sys.stderr)
         return True
