@@ -705,3 +705,13 @@ class RobotController:
         """
         factory_tiles = [(factory[0] + dx, factory[1] + dy) for dx in range(-1, 2) for dy in range(-1, 2)]
         return tuple(unit.pos) in factory_tiles
+
+    def assigned_factory_to_factory_unit(self, assigned_factory):
+        """
+        Converts the assigned factory coordinates to a factory unit.
+        """
+        factory_tiles, factory_units = self.get_factories(self.game_state)
+        for i, tile in enumerate(factory_tiles):
+            if np.array_equal(tile, assigned_factory):
+                return factory_units[i]
+        return None
