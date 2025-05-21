@@ -22,11 +22,11 @@ def run_RBPPO(role_type, shaping_type):
         heavy_shaping = True
         shaping_string = "heavy"
     
-    avg_reward_log_path = "avg_training_rewards_" + role_string + "_" + shaping_string + ".json"
+    avg_reward_log_path = "training_data/avg_training_rewards_" + role_string + "_" + shaping_string + ".json"
     avg_reward_history = []
-    avg_kl_log_path = "avg_training_kl_" + role_string + "_" + shaping_string + ".json"
+    avg_kl_log_path = "training_data/avg_training_kl_" + role_string + "_" + shaping_string + ".json"
     avg_kl_history = []
-    avg_entropy_log_path = "avg_training_entropy_" + role_string + "_" + shaping_string + ".json"
+    avg_entropy_log_path = "training_data/avg_training_entropy_" + role_string + "_" + shaping_string + ".json"
     avg_entropy_history = []
 
     # Load previous logs if available
