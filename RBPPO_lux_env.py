@@ -3,7 +3,6 @@ import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 from luxai_s2.env import LuxAI_S2
-from luxai_s2.state import StatsStateDict, create_empty_stats
 import torch
 from RBPPO_lux_obs_parser import obs_parser
 from RBPPO_lux_reward_parser import reward_parser

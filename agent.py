@@ -8,8 +8,8 @@ import sys
 import PathfindingResult
 import Controllers.RobotController as RobotController
 import Controllers.FactoryController as FactoryController
-from RBPPO_lux_env import LuxCustomEnv
 from RBPPO_ppo import PPO
+from gymnasium import spaces
 
 class Agent():
     def __init__(self, player: str, env_cfg: EnvConfig) -> None:
@@ -20,7 +20,7 @@ class Agent():
         self.robot_controller = RobotController.RobotController(None, player)  # Initialize with None game state
         self.factory_controller = FactoryController.FactoryController(None, player)  # Initialize with None game state
         
-        self.lux_env_variables = LuxCustomEnv()
+        self.lux_env_variables = InputDimensions()
         
         self.ice_model = PPO(self.lux_env_variables, 0, False) # Index 0 = ice, shaping False = light
         self.ice_model = self.ice_model.load("models/rbppo_checkpoint_ice_light.pth")
@@ -53,3 +53,9 @@ class Agent():
     def merge_action_queues(self, first, second):
         first.update(second)
         return first
+
+class InputDimensions():
+    def __init__(self):
+        # Observation space and Action space dimension definitions 
+        self.observation_space = spaces.Box(low=-999, high=999, shape=(13,), dtype=np.float32)
+        self.action_space = spaces.Discrete(7)
