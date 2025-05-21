@@ -37,7 +37,7 @@ def parse_all_actions(custom_env, obs_dict, action_index, role, robot_controller
     # Check if any units exist 
     if bool(unit):
         # Determine action based on index from categorical distribution
-        robot_action, robot_action_q_length = robot_action_parser(action_index, robot_controller, unit, role)
+        robot_action, robot_action_q_length = robot_action_parser(action_index, robot_controller, unit, role, False)
 
         combined_actions = {}
         combined_actions.update({unit.unit_id: robot_action})

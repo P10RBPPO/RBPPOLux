@@ -71,11 +71,10 @@ class PPO:
         self.heavy_shaping = heavy_shaping_param    # Desired level of shaping (False = light, True = heavy)
         self.epoch = 0                              # Trained epoch counter
     
-    def learn(self, total_timesteps):
+    def learn(self, total_timesteps, live):
         # Ensure the models are in training mode
         self.actor.train()
         self.critic.train()
-        
         t_so_far = 0 # Timestep counter
         
         batch_rews_all = [] # reward cache for full training batch
@@ -166,7 +165,10 @@ class PPO:
                     if approx_kl > self.target_kl:
                         kl_penalty = self.kl_coef * (approx_kl - self.target_kl)
                         actor_loss += kl_penalty
-                        print(f"KL: {approx_kl:.5f} (Penalty: {kl_penalty:.5f})", file=sys.stderr)
+                        if live:
+                            print(f"KL: {approx_kl:.5f} (Penalty: {kl_penalty:.5f})", file=sys.stderr)
+                        else:
+                            print(f"KL: {approx_kl:.5f} (Penalty: {kl_penalty:.5f})")
 
                     # Calculate gradients and perform backward propagation for actor network
                     self.actor_optim.zero_grad()
@@ -425,7 +427,7 @@ class PPO:
         return lux_robot_action_array
     
     # Save function for the model - uses base path if no path is provided
-    def save(self, epoch, path="rbppo_checkpoint.pth"):
+    def save(self, epoch, live, path="rbppo_checkpoint.pth"):
         torch.save({
             'actor': self.actor.state_dict(),
             'critic': self.critic.state_dict(),
@@ -435,12 +437,18 @@ class PPO:
             'heavy_shaping': self.heavy_shaping,
             'epoch': epoch
         }, path)
-        print(f"Model saved to {path}", file=sys.stderr)
+        if live:
+            print(f"Model saved to {path}", file=sys.stderr)
+        else:
+            print(f"Model saved to {path}")
 
     # Load function for the model - uses base path if no path is provided
-    def load(self, path="rbppo_checkpoint.pth"):
+    def load(self, live, path="rbppo_checkpoint.pth"):
         if not os.path.exists(path):
-            print(f"No checkpoint found at {path}", file=sys.stderr)
+            if live:
+                print(f"No checkpoint found at {path}", file=sys.stderr)
+            else:
+                raise FileNotFoundError(f"No checkpoint found at {path}")
             return False
         data = torch.load(path)
         self.actor.load_state_dict(data['actor'])
@@ -452,5 +460,8 @@ class PPO:
         self.role = data.get('role', self.role)
         self.epoch = data.get('epoch', self.epoch)
         self.heavy_shaping = data.get('heavy_shaping', self.heavy_shaping)
-        print(f"Model loaded from {path}", file=sys.stderr)
+        if live:
+            print(f"Model loaded from {path}", file=sys.stderr)
+        else:
+            print(f"Model loaded from {path}")
         return True

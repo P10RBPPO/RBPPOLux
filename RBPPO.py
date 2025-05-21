@@ -40,30 +40,29 @@ def run_RBPPO(role_type, shaping_type):
         with open(avg_entropy_log_path, "r") as f:
             avg_entropy_history = json.load(f)
 
-
     env = LuxCustomEnv()
     model = PPO(env, role_index, heavy_shaping) # params: env, role_index [0, 1], heavy_shaping_param [True, False]
     epoch = 0
     
     try:
-        model.load("models/rbppo_checkpoint_" + role_string + "_" + shaping_string + ".pth")
-        epoch = model.epoch
+        model.load(False, "models/rbppo_checkpoint_" + role_string + "_" + shaping_string + ".pth")
     except FileNotFoundError:
         print("No checkpoint found, starting fresh.")
 
+    epoch = model.epoch
     while True:
-        avg_reward, avg_kl, avg_entropy = model.learn(10000)
+        avg_reward, avg_kl, avg_entropy = model.learn(10000, False)
         avg_reward_history.append(avg_reward)
         avg_kl_history.append(avg_kl)
         avg_entropy_history.append(avg_entropy)
         
         # Save model
         epoch += 10000
-        model.save(epoch, "models/rbppo_checkpoint_" + role_string + "_" + shaping_string + ".pth")
+        model.save(epoch, False, "models/rbppo_checkpoint_" + role_string + "_" + shaping_string + ".pth")
         
         # Save model at certain milestones in their own files
         if (epoch > 0) and (math.log10(epoch) % 1 == 0):
-            model.save(epoch, "models/rbppo_checkpoint_" + role_string + "_" + shaping_string + "_" + str(epoch) + ".pth")
+            model.save(epoch, False, "models/rbppo_checkpoint_" + role_string + "_" + shaping_string + "_" + str(epoch) + ".pth")
         
         # Save log information (reward, kl, entropy)
         with open(avg_reward_log_path, "w") as f:
