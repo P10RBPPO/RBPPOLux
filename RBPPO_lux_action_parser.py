@@ -67,12 +67,13 @@ def factory_action_parser(custom_env, obs_dict, factory_controller, factory_firs
     else:
         return {"player_0": {}}, False
 
-def robot_action_parser(action_index, robot_controller, unit, role):
+def robot_action_parser(action_index, robot_controller, unit, role, live):
     robot_action = np.array([])
     
-    if role != robot_controller.unit_roles[unit.unit_id]: 
-        robot_controller.assign_role(unit.unit_id, role)
-        role = robot_controller.unit_roles[unit.unit_id]
+    if not live:
+        if role != robot_controller.unit_roles[unit.unit_id]: 
+            robot_controller.assign_role(unit.unit_id, role)
+            role = robot_controller.unit_roles[unit.unit_id]
     
     if (action_index == 0):
         robot_action = robot_controller.go_home(unit) # Go Home

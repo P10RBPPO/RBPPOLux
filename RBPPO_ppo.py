@@ -17,7 +17,7 @@ from RBPPO_network import FeedForwardNN
 from RBPPO_lux_env import LuxCustomEnv
 
 from lux.kit import obs_to_game_state, GameState
-from RBPPO_lux_action_parser import parse_all_actions, factory_action_parser
+from RBPPO_lux_action_parser import parse_all_actions, factory_action_parser, robot_action_parser
 
 from Controllers.FactoryController import FactoryController
 from Controllers.RobotController import RobotController
@@ -409,6 +409,26 @@ class PPO:
         
         # Convert the batch_advantages list to a PyTorch tensor of type float
         return torch.tensor(batch_advantages, dtype=torch.float).to(self.device)
+    
+    def get_live_action(self, obs, unit, robot_controller):
+        # Live play of Lux
+        live_play = True
+        
+        # Query actor network for action
+        logits = self.actor(obs)
+        
+        # Create Categorical distribution for action sampling
+        # Handles softmax internally
+        dist = Categorical(logits=logits)
+        
+        # Sample action
+        action_index = dist.sample()
+        
+        # Create single action array to pass into Lux
+        lux_robot_action_array, _ = robot_action_parser(action_index.item(), robot_controller, unit, self.role, live_play)
+        
+        # Return lux action for the provided robot
+        return lux_robot_action_array
     
     # Save function for the model - uses base path if no path is provided
     def save(self, epoch, path="rbppo_checkpoint.pth"):

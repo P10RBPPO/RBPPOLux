@@ -1,5 +1,8 @@
 import heapq
 import math
+
+import torch
+from RBPPO_lux_obs_parser import live_obs_parser
 from lux.kit import obs_to_game_state, GameState
 from lux.config import EnvConfig
 from lux.utils import direction_to, my_turn_to_place_factory
@@ -132,7 +135,7 @@ class RobotController:
                 # Add new units
                 self.add_unit(unit_id, unit, unit.unit_type)
 
-    def control_units(self, game_state):
+    def control_units(self, game_state, ice_model, ore_model, obs_dict, lux_env):
         """
         Controls all units and updates the actions dictionary.
         """
@@ -141,17 +144,26 @@ class RobotController:
         # Clear and repopulate the occupied tiles set
 
 
-        ice_tile_locations = self.get_ice_tile_locations(self.game_state)
-        ore_tile_locations = self.get_ore_tile_locations(self.game_state)
+        #ice_tile_locations = self.get_ice_tile_locations(self.game_state)
+        #ore_tile_locations = self.get_ore_tile_locations(self.game_state)
         rubble_tile_locations = self.get_rubble_tile_locations(self.game_state)
 
         for unit_id, unit in self.units.items():
             if len(unit.action_queue) == 0:
                 role = self.unit_roles.get(unit_id, None)
+                
+                factory_unit = self.get_closest_factory_unit(unit, game_state) # placeholder, change 
+                
+                obs = torch.tensor(live_obs_parser(obs_dict, lux_env, unit, factory_unit), dtype=torch.float)
+                
                 if role == "Ice Miner":
-                    actions[unit_id] = self.control_ice_miner(unit_id, unit, ice_tile_locations)
+                    #actions[unit_id] = self.control_ice_miner(unit_id, unit, ice_tile_locations)
+                    with torch.no_grad:
+                        actions[unit_id] = ice_model.get_live_action(obs, unit, self)
                 elif role == "Ore Miner":
-                    actions[unit_id] = self.control_ore_miner(unit_id, unit, ore_tile_locations)
+                    #actions[unit_id] = self.control_ore_miner(unit_id, unit, ore_tile_locations)
+                    with torch.no_grad:
+                        actions[unit_id] = ore_model.get_live_action(obs, unit, self)
                 elif role == "Rubble Cleaner":
                     actions[unit_id] = self.control_rubble_cleaner(unit_id, unit, rubble_tile_locations)
                 else:
