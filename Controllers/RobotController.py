@@ -559,7 +559,7 @@ class RobotController:
 
         # Perform pathfinding to the target tile
         pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, target_tile, self.game_state)
-        if pathfinding_result:
+        if pathfinding_result and unit.power >= pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state):
             return pathfinding_result.action_queue  # Return the pathfinding action queue
         else:
             # If no pathfinding result is found, return an empty action queue
