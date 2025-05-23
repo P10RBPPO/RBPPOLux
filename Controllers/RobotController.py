@@ -319,16 +319,20 @@ class RobotController:
                 action = unit.action_queue[0]  # Only consider the first action in the queue
                 if isinstance(action, np.ndarray) and action[0] == 0:  # Check if it's a move action
                     direction = action[1]
-                    dx, dy = direction_map[direction]
-                    target_pos = (current_pos[0] + dx, current_pos[1] + dy)
-
-                    # Check if the target position is already occupied or has a conflict
-                    if target_pos in current_positions.values():
-                        resolved_actions[unit_id] = []
-                    elif target_pos in target_positions:
-                        target_positions[target_pos].append(unit_id)
+                    if unit.power <= unit.move_cost(self.game_state, direction) + unit.action_queue_cost(self.game_state):
+                        # Force swap action to recharge if insufficent power
+                        resolved_actions[unit_id] = self.recharge(unit)
                     else:
-                        target_positions[target_pos] = [unit_id]
+                        dx, dy = direction_map[direction]
+                        target_pos = (current_pos[0] + dx, current_pos[1] + dy)
+
+                        # Check if the target position is already occupied or has a conflict
+                        if target_pos in current_positions.values():
+                            resolved_actions[unit_id] = []
+                        elif target_pos in target_positions:
+                            target_positions[target_pos].append(unit_id)
+                        else:
+                            target_positions[target_pos] = [unit_id]
 
         # Resolve conflicts for shared target positions
         for target_pos, unit_ids in target_positions.items():
