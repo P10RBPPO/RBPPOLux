@@ -319,20 +319,16 @@ class RobotController:
                 action = unit.action_queue[0]  # Only consider the first action in the queue
                 if isinstance(action, np.ndarray) and action[0] == 0:  # Check if it's a move action
                     direction = action[1]
-                    if unit.power <= unit.move_cost(self.game_state, direction) + unit.action_queue_cost(self.game_state):
-                        # Force swap action to recharge if insufficent power
-                        resolved_actions[unit_id] = []
-                    else:
-                        dx, dy = direction_map[direction]
-                        target_pos = (current_pos[0] + dx, current_pos[1] + dy)
+                    dx, dy = direction_map[direction]
+                    target_pos = (current_pos[0] + dx, current_pos[1] + dy)
 
-                        # Check if the target position is already occupied or has a conflict
-                        if target_pos in current_positions.values():
-                            resolved_actions[unit_id] = []
-                        elif target_pos in target_positions:
-                            target_positions[target_pos].append(unit_id)
-                        else:
-                            target_positions[target_pos] = [unit_id]
+                    # Check if the target position is already occupied or has a conflict
+                    if target_pos in current_positions.values():
+                        resolved_actions[unit_id] = []
+                    elif target_pos in target_positions:
+                        target_positions[target_pos].append(unit_id)
+                    else:
+                        target_positions[target_pos] = [unit_id]
 
         # Resolve conflicts for shared target positions
         for target_pos, unit_ids in target_positions.items():
@@ -471,8 +467,7 @@ class RobotController:
         closest_factory_tile = min(unoccupied_factory_tiles, key=lambda tile: np.mean((tile - unit.pos) ** 2))
 
         # Remove claim from robot
-        if tuple(unit.pos) in self.claimed_tiles:
-            del self.claimed_tiles[tuple(unit.pos)]
+        self.clear_claimed_tiles_for_unit(unit)
 
         return self.move_home(unit, closest_factory_tile)
 
@@ -548,6 +543,8 @@ class RobotController:
         Moves the unit to the target tile if it is not occupied.
         If the target tile is occupied, move to the second-to-last tile in the path.
         """
+
+            
         if role_type == "Ore Miner":
             ore_tiles = self.get_ore_tile_locations(self.game_state)
             target_tile = self.claim_tile(unit.unit_id, unit, ore_tiles, self.claimed_tiles)
@@ -719,3 +716,11 @@ class RobotController:
             if np.array_equal(tile, assigned_factory):
                 return factory_units[i]
         return None
+    
+    def clear_claimed_tiles_for_unit(self, unit):
+        """
+        Clears the claimed tiles for the given unit.
+        """
+        unit_id = unit.unit_id
+        # Remove claim from robot
+        self.claimed_tiles = {tile: claimant for tile, claimant in self.claimed_tiles.items() if claimant != unit_id}
