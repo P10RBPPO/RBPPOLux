@@ -594,8 +594,8 @@ class RobotController:
         """
         Recharges the unit's power by the specified amount.
         """
-        if unit.power < unit.unit_cfg.BATTERY_CAPACITY:
-            amount = 10 if unit.unit_type == "HEAVY" else 1
+        amount = 10 if unit.unit_type == "HEAVY" else 1
+        if unit.power + amount < unit.unit_cfg.BATTERY_CAPACITY:
             return [unit.recharge(x=unit.power + amount)]
         return []  # No recharge needed
 
