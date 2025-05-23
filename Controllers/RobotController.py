@@ -616,7 +616,7 @@ class RobotController:
         max_pickup = unit.unit_cfg.BATTERY_CAPACITY - unit.power
         power_to_pickup = min(power_to_pickup, max_pickup)
 
-        if power_to_pickup > 0 and factory.cargo.water > 0:
+        if power_to_pickup > 0 and factory.cargo.water > 0 and self.is_within_factory(unit, factory.pos):
             return [unit.pickup(4, power_to_pickup, repeat=0, n=1)]
         else:
             return []
