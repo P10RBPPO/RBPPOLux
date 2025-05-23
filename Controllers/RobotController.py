@@ -321,7 +321,7 @@ class RobotController:
                     direction = action[1]
                     if unit.power <= unit.move_cost(self.game_state, direction) + unit.action_queue_cost(self.game_state):
                         # Force swap action to recharge if insufficent power
-                        resolved_actions[unit_id] = self.recharge(unit)
+                        resolved_actions[unit_id] = []
                     else:
                         dx, dy = direction_map[direction]
                         target_pos = (current_pos[0] + dx, current_pos[1] + dy)
@@ -587,7 +587,7 @@ class RobotController:
         """
         # Check if the unit has enough power to dig
         #if unit.power >= unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state):
-        if not self.is_within_factory(unit, self.robot_to_factory[unit.unit_id]):
+        if not self.is_within_factory(unit, self.robot_to_factory[unit.unit_id]) and unit.power >= unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state):
             # If the unit is not within the factory, dig rubble
             return [unit.dig(repeat=0, n=amount)]
         else:
