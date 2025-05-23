@@ -32,11 +32,11 @@ def run_RBPPO(role_type, shaping_type):
     avg_entropy_log_path = "training_data/avg_training_entropy_" + role_string + "_" + shaping_string + ".json"
     avg_entropy_history = []
     
-    avg_reward_log_path_0 = "training_data/avg_training_rewards_0" + role_string + "_" + shaping_string + ".json"
+    avg_reward_log_path_0 = "training_data/avg_training_rewards_0_" + role_string + "_" + shaping_string + ".json"
     avg_reward_history_0 = []
-    avg_reward_log_path_1 = "training_data/avg_training_rewards_1" + role_string + "_" + shaping_string + ".json"
+    avg_reward_log_path_1 = "training_data/avg_training_rewards_1_" + role_string + "_" + shaping_string + ".json"
     avg_reward_history_1 = []
-    avg_reward_log_path_2 = "training_data/avg_training_rewards_2" + role_string + "_" + shaping_string + ".json"
+    avg_reward_log_path_2 = "training_data/avg_training_rewards_2_" + role_string + "_" + shaping_string + ".json"
     avg_reward_history_2 = []
 
     # Load previous logs if available
