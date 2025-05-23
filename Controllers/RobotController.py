@@ -559,7 +559,7 @@ class RobotController:
 
         # Perform pathfinding to the target tile
         pathfinding_result = PathfindingResult.astar_search(unit, unit.pos, target_tile, self.game_state)
-        if pathfinding_result:
+        if pathfinding_result and unit.power >= pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state):
             return pathfinding_result.action_queue  # Return the pathfinding action queue
         else:
             # If no pathfinding result is found, return an empty action queue
@@ -594,8 +594,8 @@ class RobotController:
         """
         Recharges the unit's power by the specified amount.
         """
-        if unit.power < unit.unit_cfg.BATTERY_CAPACITY:
-            amount = 10 if unit.unit_type == "HEAVY" else 1
+        amount = 10 if unit.unit_type == "HEAVY" else 1
+        if unit.power + amount < unit.unit_cfg.BATTERY_CAPACITY:
             return [unit.recharge(x=unit.power + amount)]
         return []  # No recharge needed
 
