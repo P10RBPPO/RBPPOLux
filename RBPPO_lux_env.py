@@ -38,7 +38,7 @@ class LuxCustomEnv(gym.Env):
         self.prev_obs = obs
         return obs, {}
     
-    def step(self, action, prev_obs, custom_env, role, heavy_shaping):
+    def step(self, action, prev_obs, custom_env, role, shaping_level):
         
         # Fill enemy factories to survive 1000 turns
         opp_agent = list(self.agents.keys())[1]
@@ -62,9 +62,9 @@ class LuxCustomEnv(gym.Env):
         
         new_obs = torch.tensor(obs_parser(copy.deepcopy(obs), custom_env), dtype=torch.float)
         
-        reward = reward_parser(prev_obs, new_obs, role, heavy_shaping)
+        reward, reward_0, reward_1, reward_2 = reward_parser(prev_obs, new_obs, role, shaping_level)
 
-        return obs, reward, done, truncated, info
+        return obs, reward, done, truncated, info, reward_0, reward_1, reward_2
 
 
     def render(self, mode='human'):

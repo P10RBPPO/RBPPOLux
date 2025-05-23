@@ -18,14 +18,17 @@
 # Possible Modifications:
 # 1: Reward for winning / Penalty for losing?
 
-def reward_parser(prev_obs, new_obs, role, heavy_shaping=False):
+def reward_parser(prev_obs, new_obs, role, shaping_level):
     reward = 0
+    reward_0 = 0
+    reward_1 = 0
+    reward_2 = 0
     
     # Reward thresholds (decimals representing %)
     power_recharge_reward_threshold = 0.1
     power_pickup_reward_threshold = 0.25
-    unit_total_cargo_reward_reduction_threshold = 0.1
-    unit_total_cargo_reward_cap = 0.2
+    unit_total_cargo_reward_reduction_threshold = 0.05
+    unit_total_cargo_reward_cap = 0.1
     
     ## --- pre-step data --- ##
     # unit pos (note: normalized pos)
@@ -68,7 +71,7 @@ def reward_parser(prev_obs, new_obs, role, heavy_shaping=False):
     new_factory_distance = new_obs[7]
     
     # factory cargo
-    new_factory_power = prev_obs[8]
+    new_factory_power = new_obs[8]
     new_factory_ice_cargo = new_obs[9]
     new_factory_ore_cargo = new_obs[10]
     new_factory_combined_cargo = new_factory_ice_cargo + new_factory_ore_cargo
@@ -77,47 +80,63 @@ def reward_parser(prev_obs, new_obs, role, heavy_shaping=False):
     new_ice_distance = new_obs[11]
     new_ore_distance = new_obs[12]
     
+    # All factories died
+    no_factory_left = True if new_factory_power == 0 else False
+    
     ## --- end post-step data --- ##
     
-    # Recharge reward
-    if  prev_unit_power < power_recharge_reward_threshold:
-        if (prev_unit_power < new_unit_power) and (prev_factory_power < new_factory_power):
-            reward += 1
-    
-    # Pickup reward
-    if  prev_unit_power < power_pickup_reward_threshold:
-        if (prev_unit_power < new_unit_power) and (prev_factory_power > new_factory_power):
-            reward += 2
-    
-    # Dig reward
-    if prev_unit_combined_cargo < unit_total_cargo_reward_cap:
-        if (prev_unit_ice_cargo < new_unit_ice_cargo) or (prev_unit_ore_cargo < new_unit_ore_cargo):
-            if prev_unit_combined_cargo < unit_total_cargo_reward_reduction_threshold:
-                if (prev_unit_ice_cargo < new_unit_ice_cargo) and role == "Ice Miner":
-                    reward += 10
-                elif (prev_unit_ore_cargo < new_unit_ore_cargo) and role == "Ore Miner":
-                    reward += 10
-                else:
-                    reward += 5
+    # Level 0 shaping - Simple - transfer rewards for transferring resources into factory 
+    if shaping_level >= 0:
+        # Transfer reward
+        if prev_factory_combined_cargo < new_factory_combined_cargo:
+            if (prev_factory_ice_cargo < new_factory_ice_cargo) and role == "Ice Miner":
+                reward += 10
+            elif (prev_factory_ore_cargo < new_factory_ore_cargo) and role == "Ore Miner":
+                reward += 10
             else:
-                if (prev_unit_ice_cargo < new_unit_ice_cargo) and role == "Ice Miner":
-                    reward += 5
-                elif (prev_unit_ore_cargo < new_unit_ore_cargo) and role == "Ore Miner":
-                    reward += 5
-                else:
-                    reward += 2
-        
-    # Transfer reward
-    if prev_factory_combined_cargo < new_factory_combined_cargo:
-        if (prev_factory_ice_cargo < new_factory_ice_cargo) and role == "Ice Miner":
-            reward += 10
-        elif (prev_factory_ore_cargo < new_factory_ore_cargo) and role == "Ore Miner":
-            reward += 10
-        else:
-            reward += 5
+                reward += 5
+                
+        # If dead then penalty
+        if no_factory_left == True:
+            reward -= 1000
+            
+        reward_0 = reward
     
-    # Heavy shaping - Rewards for moving closer to resources and going home with resources in cargo
-    if heavy_shaping:
+    # Level 1 shaping - Moderate - Dig and power acquisition rewards
+    if shaping_level >= 1:
+        
+        # Recharge reward
+        if  prev_unit_power < power_recharge_reward_threshold:
+            if (prev_unit_power < new_unit_power) and (prev_factory_power < new_factory_power):
+                reward += 1
+        
+        # Pickup reward
+        if  prev_unit_power < power_pickup_reward_threshold:
+            if (prev_unit_power < new_unit_power) and (prev_factory_power > new_factory_power):
+                reward += 2
+        
+        # Dig reward
+        if prev_unit_combined_cargo < unit_total_cargo_reward_cap:
+            if (prev_unit_ice_cargo < new_unit_ice_cargo) or (prev_unit_ore_cargo < new_unit_ore_cargo):
+                if prev_unit_combined_cargo < unit_total_cargo_reward_reduction_threshold:
+                    if (prev_unit_ice_cargo < new_unit_ice_cargo) and role == "Ice Miner":
+                        reward += 10
+                    elif (prev_unit_ore_cargo < new_unit_ore_cargo) and role == "Ore Miner":
+                        reward += 10
+                    else:
+                        reward += 5
+                else:
+                    if (prev_unit_ice_cargo < new_unit_ice_cargo) and role == "Ice Miner":
+                        reward += 5
+                    elif (prev_unit_ore_cargo < new_unit_ore_cargo) and role == "Ore Miner":
+                        reward += 5
+                    else:
+                        reward += 2
+                        
+        reward_1 = reward
+    
+    # Level 2 shaping - Complex - Move Rewards - Rewards for moving closer to resources and going home with resources in cargo
+    if shaping_level == 2:
         
         # Reward for moving closer to resource tile
         if prev_unit_combined_cargo < unit_total_cargo_reward_cap:
@@ -129,7 +148,6 @@ def reward_parser(prev_obs, new_obs, role, heavy_shaping=False):
                 else:
                     reward += 2
         
-        
         # Reward for going home with something in cargo
         if (prev_factory_distance > new_factory_distance) and (new_unit_combined_cargo > 0):
             if (new_unit_ice_cargo > 0) and role == "Ice Miner":
@@ -138,5 +156,7 @@ def reward_parser(prev_obs, new_obs, role, heavy_shaping=False):
                 reward += 6
             else:
                 reward += 3
+                
+        reward_2 = reward
     
-    return reward
+    return reward, reward_0, reward_1, reward_2

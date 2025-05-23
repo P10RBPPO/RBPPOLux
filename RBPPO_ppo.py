@@ -17,7 +17,7 @@ from Controllers.FactoryController import FactoryController
 from Controllers.RobotController import RobotController
 
 class PPO:
-    def __init__(self, env, role_index, heavy_shaping_param):
+    def __init__(self, env, role_index, shaping_level_param):
         # If GPU, then use it, else use CPU
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -25,7 +25,7 @@ class PPO:
         self.roles = ["Ice Miner", "Ore Miner"]
         
         # Init hyperparams
-        self._init_hyperparameters(role_index, heavy_shaping_param)
+        self._init_hyperparameters(role_index, shaping_level_param)
         
         # Get environment information
         self.env = env
@@ -46,7 +46,7 @@ class PPO:
         self.actor_optim = Adam(self.actor.parameters(), lr=self.lr)
         self.critic_optim = Adam(self.critic.parameters(), lr=self.lr)
         
-    def _init_hyperparameters(self, role_index, heavy_shaping_param):
+    def _init_hyperparameters(self, role_index, shaping_level_param):
         #  Default values for now
         self.timesteps_per_batch = 5000         # Timesteps per batch
         self.max_timesteps_per_episode = 1000   # Timesteps per episode    
@@ -54,7 +54,7 @@ class PPO:
         self.n_updates_per_iteration = 10       # Epoch count (# times full set of minibatches are looped over)
         self.clip = 0.2                         # Recommended clip threshold for PPO in PPO paper
         self.gamma = 0.95                       # Discount value
-        self.lr = 0.0001                        # Learning rate
+        self.lr = 0.0002                        # Learning rate
         
         # Optimization hyperparams
         self.max_grad_norm = 0.5                # Gradient clipping value
@@ -62,13 +62,13 @@ class PPO:
         self.ent_coef = 0.1                     # Entropy coefficient for Entropy Regularization (higher = more exploration)
         self.lam = 0.98                         # Lambda parameter for GAE
         
-        self.target_kl = 0.04 if not heavy_shaping_param else 0.2   # KL Divergence threshold - higher for heavy shaping due to higher variance
-        self.kl_coef = 1.0 if not heavy_shaping_param else 0.5      # Scaling factor for KL penalty 
+        self.target_kl = 0.02 if not shaping_level_param == 2 else 0.1   # KL Divergence threshold - higher for heavy shaping due to higher variance
+        self.kl_coef = 1.0 if not shaping_level_param == 2 else 0.5      # Scaling factor for KL penalty 
 
         self.player = "player_0"                    # Player identifier
         self.factory_first_turn = True              # First turn flag for factory to stop factory actions while training
         self.role = self.roles[role_index]          # Desired role for training
-        self.heavy_shaping = heavy_shaping_param    # Desired level of shaping (False = light, True = heavy)
+        self.shaping_level = shaping_level_param    # Desired level of shaping (False = light, True = heavy)
         self.epoch = 0                              # Trained epoch counter
     
     def learn(self, total_timesteps, live):
@@ -80,13 +80,21 @@ class PPO:
         batch_rews_all = [] # reward cache for full training batch
         kl_values = []      # kl value cache for full training batch
         entropy_values = [] # entropy value cache for full training batch
+        
+        # Reward caches for different levels of reward shaping
+        batch_rews_shaping_0 = []
+        batch_rews_shaping_1 = []
+        batch_rews_shaping_2 = []
 
         
         while t_so_far < total_timesteps:
-            batch_obs, batch_acts, batch_log_probs, batch_rews, batch_lens, batch_vals, batch_dones, batch_logits = self.rollout()
+            batch_obs, batch_acts, batch_log_probs, batch_rews, batch_lens, batch_vals, batch_dones, batch_logits, batch_rews_0, batch_rews_1, batch_rews_2 = self.rollout()
             
             # Save batch rewards
             batch_rews_all.extend(batch_rews)
+            batch_rews_shaping_0.extend(batch_rews_0)
+            batch_rews_shaping_1.extend(batch_rews_1)
+            batch_rews_shaping_2.extend(batch_rews_2)
             
             # Calculate advantage using GAE
             A_k = self.calculate_gae(batch_rews, batch_vals, batch_dones) 
@@ -188,11 +196,23 @@ class PPO:
         ep_rewards = [sum(ep_rews) for ep_rews in batch_rews_all]
         avg_reward = sum(ep_rewards) / len(ep_rewards)
         
+        # Compute average episodic reward for this batch (shaping lvl 0)
+        ep_rewards_0 = [sum(ep_rews_0) for ep_rews_0 in batch_rews_shaping_0]
+        avg_reward_0 = sum(ep_rewards_0) / len(ep_rewards_0)
+        
+        # Compute average episodic reward for this batch (shaping lvl 1)
+        ep_rewards_1 = [sum(ep_rews_1) for ep_rews_1 in batch_rews_shaping_1]
+        avg_reward_1 = sum(ep_rewards_1) / len(ep_rewards_1)
+        
+        # Compute average episodic reward for this batch (shaping lvl 2)
+        ep_rewards_2 = [sum(ep_rews_2) for ep_rews_2 in batch_rews_shaping_2]
+        avg_reward_2 = sum(ep_rewards_2) / len(ep_rewards_2)
+        
         # Compute average episodic kl and entropy for this batch
         avg_kl = sum(kl_values) / len(kl_values) if kl_values else 0.0
         avg_entropy = sum(entropy_values) / len(entropy_values) if entropy_values else 0.0
 
-        return avg_reward, avg_kl, avg_entropy
+        return avg_reward, avg_kl, avg_entropy, avg_reward_0, avg_reward_1, avg_reward_2
                 
     def evaluate(self,batch_obs, batch_acts):
         # Store current model mode
@@ -242,6 +262,9 @@ class PPO:
         batch_dones = []            # Done flags
         
         batch_logits = []           # logits for KL divergence calculation 
+        batch_rews_0 = []           # batch shaping lvl 0 rewards
+        batch_rews_1 = []           # batch shaping lvl 1 rewards
+        batch_rews_2 = []           # batch shaping lvl 2 rewards
         
         # Number of timesteps run so far this batch    
         t = 0
@@ -251,6 +274,10 @@ class PPO:
             ep_rews = []                # episodic rewards
             ep_vals = []                # episodic critic values
             ep_dones = []               # episodic done flags
+            
+            ep_rews_0 = []              # episodic rewards for shaping lvl 0
+            ep_rews_1 = []              # episodic rewards for shaping lvl 1
+            ep_rews_2 = []              # episodic rewards for shaping lvl 2
             
             robot_controller = RobotController(None, self.player)
             factory_controller = FactoryController(None, self.player)
@@ -276,6 +303,10 @@ class PPO:
             macro_critic_val = None         # critic value for value loss
             macro_obs_np = None             # observations at the time of macro action selection
             macro_rewards = []              # reward collected during macro action
+            
+            macro_rewards_0 = []              # reward for shaping lvl 0 collected during macro action
+            macro_rewards_1 = []              # reward for shaping lvl 1 collected during macro action
+            macro_rewards_2 = []              # reward for shaping lvl 2 collected during macro action
             
             for ep_t in range(self.max_timesteps_per_episode):
                 # If episode is done, break
@@ -304,19 +335,27 @@ class PPO:
                     macro_critic_val = self.critic(obs).detach().flatten().squeeze(-1).item() # Poll critic network to value loss calc
                     macro_obs_np = obs_np # Store numpy observations in cache
                     macro_rewards = [] # reset raw per-step reward for macro action
+                    
+                    macro_rewards_0 = [] # reset shaping lvl 0 collector
+                    macro_rewards_1 = [] # reset shaping lvl 1 collector
+                    macro_rewards_2 = [] # reset shaping lvl 2 collector
                 else:
                     remaining_macro_action_queue_length -= 1 # Reduce action queue counter accordingly
                     # Poll a new action set only for factories
                     lux_action_dict, self.factory_first_turn = factory_action_parser(self.env, obs_dict, factory_controller, self.factory_first_turn) 
                     
                 
-                obs, rew, terminated, truncated, _ = self.env.step(lux_action_dict, obs, self.env, self.role, self.heavy_shaping)
+                obs, rew, terminated, truncated, _, rew_0, rew_1, rew_2 = self.env.step(lux_action_dict, obs, self.env, self.role, self.shaping_level)
                 
                 # Single agent setup for now, so this works as intended
                 done = terminated or truncated
                 done = done["player_0"]
                 
                 macro_rewards.append(rew) # store macro reward for each step
+                
+                macro_rewards_0.append(rew_0) # store shaping lvl 0 macro reward for each step
+                macro_rewards_1.append(rew_1) # store shaping lvl 1 macro reward for each step
+                macro_rewards_2.append(rew_2) # store shaping lvl 2 macro reward for each step
                 
                 # Store new observation dict for conversion on next loop
                 obs_dict = copy.deepcopy(obs)
@@ -331,18 +370,33 @@ class PPO:
                     # Discount macro action rewards to properly match discounted rewards
                     macro_reward = sum(self.gamma ** i * r for i, r in enumerate(macro_rewards))
                     
+                    # Discount shaping lvl 0-1-2 macro action rewards to properly match discounted rewards
+                    macro_reward_0 = sum(self.gamma ** i * r for i, r in enumerate(macro_rewards_0))
+                    macro_reward_1 = sum(self.gamma ** i * r for i, r in enumerate(macro_rewards_1))
+                    macro_reward_2 = sum(self.gamma ** i * r for i, r in enumerate(macro_rewards_2))
+                    
                     # Collect obs, reward, action and log prob
                     batch_obs.append(macro_obs_np)
                     batch_acts.append(macro_action.cpu())
                     batch_log_probs.append(macro_log_prob.cpu())
                     ep_rews.append(macro_reward)
                     ep_vals.append(macro_critic_val)
+                    
+                    # Collect shaping rewards
+                    ep_rews_0.append(macro_reward_0)
+                    ep_rews_1.append(macro_reward_1)
+                    ep_rews_2.append(macro_reward_2)
                 
             # Collect episodic length and rewards
             batch_lens.append(ep_t + 1) # Increment because timestep starts at 0
             batch_rews.append(ep_rews)
             batch_vals.append(ep_vals)
             batch_dones.append(ep_dones)
+            
+            # Collect episodic shaping rewards
+            batch_rews_0.append(ep_rews_0)
+            batch_rews_1.append(ep_rews_1)
+            batch_rews_2.append(ep_rews_2)
             
         # Reshape data as tensors before returning
         batch_obs = torch.tensor(np.array(batch_obs), dtype=torch.float).to(self.device)
@@ -351,7 +405,7 @@ class PPO:
         
         batch_logits = torch.stack(batch_logits).to(self.device)
         
-        return batch_obs, batch_acts, batch_log_probs, batch_rews, batch_lens, batch_vals, batch_dones, batch_logits
+        return batch_obs, batch_acts, batch_log_probs, batch_rews, batch_lens, batch_vals, batch_dones, batch_logits, batch_rews_0, batch_rews_1, batch_rews_2
     
     
     def get_action(self, obs, obs_dict, robot_controller, factory_controller):
@@ -434,7 +488,7 @@ class PPO:
             'actor_optim': self.actor_optim.state_dict(),
             'critic_optim': self.critic_optim.state_dict(),
             'role': self.role,
-            'heavy_shaping': self.heavy_shaping,
+            'shaping_level': self.shaping_level,
             'epoch': epoch
         }, path)
         if live:
@@ -459,7 +513,7 @@ class PPO:
         self.critic_optim.load_state_dict(data['critic_optim'])
         self.role = data.get('role', self.role)
         self.epoch = data.get('epoch', self.epoch)
-        self.heavy_shaping = data.get('heavy_shaping', self.heavy_shaping)
+        self.shaping_level = data.get('shaping_level', self.shaping_level)
         if live:
             print(f"Model loaded from {path}", file=sys.stderr)
         else:
