@@ -4,13 +4,45 @@ import argparse
 import os
 
 
-def run_RBPPO_plot_reward(arg_role, arg_shaping):
+def run_RBPPO_plot_combined_rewards(arg_role, shaping_level, shaping_name):
+    """
+    Generates a combined plot for the given shaping level and all lower levels for rewards.
+    """
     role_string = "ice" if arg_role.lower() == "ice" else "ore"
-    shaping_string = "light" if arg_shaping.lower() == "light" else "heavy"
-    file_path = f"training_data/avg_training_rewards_{role_string}_{shaping_string}.json"
+    levels = list(range(shaping_level + 1))  # Include the current level and all lower levels
+    plt.figure(figsize=(10, 6))  # Increase figure size to 1000x600 pixels
+
+    for level in levels:
+        file_path = f"training_data/avg_training_rewards_{level}_{role_string}_{shaping_name}.json"
+        if not os.path.exists(file_path):
+            print(f"Missing training data for {role_string.capitalize()} {shaping_name.capitalize()} (Level {level}) in training_data folder.")
+            continue
+
+        with open(file_path, "r") as f:
+            rewards = json.load(f)
+
+        plt.plot(rewards, label=f"Level {level} ({shaping_name.capitalize()})")  # Add a label for the legend
+
+    plt.xlabel("Training iteration (10000 steps each)", fontsize=14)
+    plt.ylabel("Average episodic reward", fontsize=14)
+    plt.title(f"Training Progress - Role: {role_string.capitalize()}, Shaping: {shaping_name.capitalize()} (Level {shaping_level})", fontsize=16)
+    plt.tick_params(axis='both', which='major', labelsize=12)
+    plt.grid(True)
+    plt.legend(fontsize=12)  # Add a legend to differentiate levels
+    os.makedirs("training_graphs", exist_ok=True)
+    plt.savefig(f"training_graphs/ppo_training_plot_{role_string}_{shaping_name}_level_{shaping_level}_combined_rewards.png", dpi=300)
+    plt.close()
+
+
+def run_RBPPO_plot_reward(arg_role, shaping_level, shaping_name):
+    """
+    Generates a separate plot for the average reward of a specific shaping level and category.
+    """
+    role_string = "ice" if arg_role.lower() == "ice" else "ore"
+    file_path = f"training_data/avg_training_rewards_{shaping_level}_{role_string}_{shaping_name}.json"
 
     if not os.path.exists(file_path):
-        print(f"Missing training data for {role_string.capitalize()} {shaping_string.capitalize()} in RBPPOLux/training_data")
+        print(f"Missing training data for {role_string.capitalize()} {shaping_name.capitalize()} (Level {shaping_level}) in training_data folder.")
         return
 
     with open(file_path, "r") as f:
@@ -20,68 +52,23 @@ def run_RBPPO_plot_reward(arg_role, arg_shaping):
     plt.plot(rewards)
     plt.xlabel("Training iteration (10000 steps each)", fontsize=14)
     plt.ylabel("Average episodic reward", fontsize=14)
-    plt.title(f"Training Progress\nRole: {role_string.capitalize()}, Shaping: {shaping_string.capitalize()}", fontsize=16)
+    plt.title(f"Training Progress\nRole: {role_string.capitalize()}, Shaping: {shaping_name.capitalize()} (Level {shaping_level})", fontsize=16)
     plt.tick_params(axis='both', which='major', labelsize=12)
     plt.grid(True)
-    plt.savefig(f"training_graphs/ppo_training_plot_{role_string}_{shaping_string}_reward.png", dpi=300)
-    plt.close()
-
-
-def run_RBPPO_plot_KL(arg_role, arg_shaping):
-    role_string = "ice" if arg_role.lower() == "ice" else "ore"
-    shaping_string = "light" if arg_shaping.lower() == "light" else "heavy"
-    file_path = f"training_data/avg_training_kl_{role_string}_{shaping_string}.json"
-
-    if not os.path.exists(file_path):
-        print(f"Missing training data for {role_string.capitalize()} {shaping_string.capitalize()} in RBPPOLux/training_data")
-        return
-
-    with open(file_path, "r") as f:
-        kl = json.load(f)
-
-    plt.figure(figsize=(10, 6))  # Increase figure size to 1000x600 pixels
-    plt.plot(kl)
-    plt.xlabel("Training iteration (10000 steps each)", fontsize=14)
-    plt.ylabel("Average episodic KL", fontsize=14)
-    plt.title(f"Training Progress\nRole: {role_string.capitalize()}, Shaping: {shaping_string.capitalize()}", fontsize=16)
-    plt.tick_params(axis='both', which='major', labelsize=12)
-    plt.grid(True)
-    plt.savefig(f"training_graphs/ppo_training_plot_{role_string}_{shaping_string}_kl.png", dpi=300)
-    plt.close()
-
-
-def run_RBPPO_plot_entropy(arg_role, arg_shaping):
-    role_string = "ice" if arg_role.lower() == "ice" else "ore"
-    shaping_string = "light" if arg_shaping.lower() == "light" else "heavy"
-    file_path = f"training_data/avg_training_entropy_{role_string}_{shaping_string}.json"
-
-    if not os.path.exists(file_path):
-        print(f"Missing training data for {role_string.capitalize()} {shaping_string.capitalize()} in RBPPOLux/training_data")
-        return
-
-    with open(file_path, "r") as f:
-        entropy = json.load(f)
-
-    plt.figure(figsize=(10, 6))  # Increase figure size to 1000x600 pixels
-    plt.plot(entropy)
-    plt.xlabel("Training iteration (10000 steps each)", fontsize=14)
-    plt.ylabel("Average episodic entropy", fontsize=14)
-    plt.title(f"Training Progress\nRole: {role_string.capitalize()}, Shaping: {shaping_string.capitalize()}", fontsize=16)
-    plt.tick_params(axis='both', which='major', labelsize=12)
-    plt.grid(True)
-    plt.savefig(f"training_graphs/ppo_training_plot_{role_string}_{shaping_string}_entropy.png", dpi=300)
+    os.makedirs("training_graphs", exist_ok=True)
+    plt.savefig(f"training_graphs/ppo_training_plot_{role_string}_{shaping_name}_level_{shaping_level}_reward.png", dpi=300)
     plt.close()
 
 
 def run_all_combinations():
     roles = ["ice", "ore"]
-    shapings = ["light", "heavy"]
+    shapings = [("simple", 0), ("moderate", 1), ("complex", 2)]  # Shaping names and their corresponding levels
     for role in roles:
-        for shaping in shapings:
-            print(f"Generating plots for role: {role}, shaping: {shaping}")
-            run_RBPPO_plot_reward(role, shaping)
-            run_RBPPO_plot_KL(role, shaping)
-            run_RBPPO_plot_entropy(role, shaping)
+        for shaping_name, shaping_level in shapings:
+            print(f"Generating combined plot for role: {role}, shaping: {shaping_name} (Level {shaping_level})")
+            run_RBPPO_plot_combined_rewards(role, shaping_level, shaping_name)
+            print(f"Generating separate plot for role: {role}, shaping: {shaping_name} (Level {shaping_level})")
+            run_RBPPO_plot_reward(role, shaping_level, shaping_name)
 
 
 # Create the training_graphs directory if it doesn't exist
@@ -90,7 +77,7 @@ os.makedirs("training_graphs", exist_ok=True)
 # Execute the training code with parsed arguments
 parser = argparse.ArgumentParser(description="Run training data plotting script for designated type.")
 parser.add_argument("--role", choices=["Ice", "ice", "Ore", "ore"], help="Choose which role to plot (Ice Miner or Ore Miner).")
-parser.add_argument("--shaping", choices=["Light", "light", "Heavy", "heavy"], help="Reward shaping intensity to plot.")
+parser.add_argument("--shaping", choices=["Simple", "simple", "Moderate", "moderate", "Complex", "complex"], help="Reward shaping intensity to plot.")
 parser.add_argument("--all", action="store_true", help="Generate graphs for all role and shaping combinations.")
 
 args = parser.parse_args()
@@ -99,8 +86,10 @@ if args.all:
     run_all_combinations()
 else:
     if args.role and args.shaping:
-        run_RBPPO_plot_reward(args.role, args.shaping)
-        run_RBPPO_plot_KL(args.role, args.shaping)
-        run_RBPPO_plot_entropy(args.role, args.shaping)
+        shaping_map = {"simple": 0, "moderate": 1, "complex": 2}
+        shaping_name = args.shaping.lower()
+        shaping_level = shaping_map[shaping_name]
+        run_RBPPO_plot_combined_rewards(args.role, shaping_level, shaping_name)
+        run_RBPPO_plot_reward(args.role, shaping_level, shaping_name)
     else:
         print("Error: You must specify both --role and --shaping, or use --all to generate all plots.")
