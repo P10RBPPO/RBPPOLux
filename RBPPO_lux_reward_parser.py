@@ -97,8 +97,8 @@ def reward_parser(prev_obs, new_obs, role, shaping_level):
                 reward += 5
                 
         # If dead then penalty
-        if no_factory_left == True:
-            reward -= 1000
+        # if no_factory_left == True:
+        #     reward -= 1000
             
         reward_0 = reward
     
