@@ -8,6 +8,8 @@ def run_RBPPO_plot_combined_rewards(arg_role, shaping_level, shaping_name):
     """
     Generates a combined plot for the given shaping level and all lower levels for rewards.
     """
+    shaping_map = {0: "simple", 1: "moderate", 2: "complex"}
+    shaping_name_corrected = shaping_map.get(level, shaping_name)
     role_string = "ice" if arg_role.lower() == "ice" else "ore"
     levels = list(range(shaping_level + 1))  # Include the current level and all lower levels
     plt.figure(figsize=(10, 6))  # Increase figure size to 1000x600 pixels
@@ -21,7 +23,8 @@ def run_RBPPO_plot_combined_rewards(arg_role, shaping_level, shaping_name):
         with open(file_path, "r") as f:
             rewards = json.load(f)
 
-        plt.plot(rewards, label=f"Level {level} ({shaping_name.capitalize()})")  # Add a label for the legend
+        
+        plt.plot(rewards, label=f"Level {level} ({shaping_name_corrected.capitalize()})")  # Add a label for the legend
 
     plt.xlabel("Training iteration (10000 steps each)", fontsize=14)
     plt.ylabel("Average episodic reward", fontsize=14)
