@@ -159,10 +159,8 @@ class RobotController:
                 obs = torch.tensor(obs_np, dtype=torch.float).to(self.device)
                 
                 if role == "Ice Miner":
-                    #actions[unit_id] = self.control_ice_miner(unit_id, unit, ice_tile_locations)
                     actions[unit_id] = ice_model.get_live_action(obs, unit, self)
                 elif role == "Ore Miner":
-                    #actions[unit_id] = self.control_ore_miner(unit_id, unit, ore_tile_locations)
                     actions[unit_id] = ore_model.get_live_action(obs, unit, self)
                 elif role == "Rubble Cleaner":
                     actions[unit_id] = self.control_rubble_cleaner(unit_id, unit, rubble_tile_locations)
@@ -419,7 +417,7 @@ class RobotController:
             del self.claimed_tiles[tuple(unit.pos)]
 
         # Check if the robot is within the factory area
-        if self.is_within_factory(unit, assigned_factory):
+        if self.is_within_factory(unit):
             actions = []
 
             # Transfer resources if a resource type is specified
@@ -498,8 +496,7 @@ class RobotController:
             if unit.power >= pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state):
                 return pathfinding_result.action_queue  # Return the pathfinding action queue
             else:
-                closest_factory = self.get_closest_factory(unit, self.game_state)
-                if self.is_within_factory(unit, closest_factory):
+                if self.is_within_factory(unit):
                     factory_power = self.get_closest_factory_unit(unit, self.game_state).power
                     power_to_pickup = int(factory_power * 0.20)
                     if unit.power + power_to_pickup >= pathfinding_result.total_move_cost + unit.action_queue_cost(self.game_state):
@@ -572,7 +569,7 @@ class RobotController:
         If the unit is carrying ore, transfer it to the factory.
         """
         # Get the assigned factory for this robot
-        if self.is_within_factory(unit, self.robot_to_factory[unit.unit_id]):
+        if self.is_within_factory(unit):
             highest_cargo_index, highest_cargo_value = self.highest_cargo(unit.cargo)
             if highest_cargo_value > 0:
                 return [unit.transfer(0, highest_cargo_index, highest_cargo_value, repeat=0)]
@@ -587,7 +584,7 @@ class RobotController:
         """
         # Check if the unit has enough power to dig
         #if unit.power >= unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state):
-        if not self.is_within_factory(unit, self.robot_to_factory[unit.unit_id]) and unit.power >= unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state):
+        if not self.is_within_factory(unit) and unit.power >= unit.dig_cost(self.game_state) + unit.action_queue_cost(self.game_state):
             # If the unit is not within the factory, dig rubble
             return [unit.dig(repeat=0, n=amount)]
         else:
@@ -616,7 +613,7 @@ class RobotController:
         max_pickup = unit.unit_cfg.BATTERY_CAPACITY - unit.power
         power_to_pickup = min(power_to_pickup, max_pickup)
 
-        if power_to_pickup > 0 and factory.cargo.water > 0 and self.is_within_factory(unit, factory.pos):
+        if power_to_pickup > 0 and factory.cargo.water > 0 and self.is_within_factory(unit):
             return [unit.pickup(4, power_to_pickup, repeat=0, n=1)]
         else:
             return []
@@ -696,19 +693,22 @@ class RobotController:
         """
         return [unit.pos for unit in self.game_state.units[self.player].values()]
     
-    def is_within_factory(self, unit, factory):
+    def is_within_factory(self, unit):
         """
-        Checks if the unit is within the 3x3 area of the given factory.
-        
+        Checks if the unit is within the 3x3 area of any factory.
+
         Parameters:
             unit: The unit to check.
-            factory: The factory to compare against.
-        
+
         Returns:
-            True if the unit is within the 3x3 area of the factory, False otherwise.
+            True if the unit is within the 3x3 area of any factory, False otherwise.
         """
-        factory_tiles = [(factory[0] + dx, factory[1] + dy) for dx in range(-1, 2) for dy in range(-1, 2)]
-        return tuple(unit.pos) in factory_tiles
+        factory_tiles, _ = self.get_factories(self.game_state)
+        for factory in factory_tiles:
+            factory_area = [(factory[0] + dx, factory[1] + dy) for dx in range(-1, 2) for dy in range(-1, 2)]
+            if tuple(unit.pos) in factory_area:
+                return True
+        return False
 
     def assigned_factory_to_factory_unit(self, assigned_factory):
         """
