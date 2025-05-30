@@ -574,7 +574,10 @@ class RobotController:
         # Get the assigned factory for this robot
         if self.is_within_factory(unit, self.robot_to_factory[unit.unit_id]):
             highest_cargo_index, highest_cargo_value = self.highest_cargo(unit.cargo)
-            return [unit.transfer(0, highest_cargo_index, highest_cargo_value, repeat=0)]
+            if highest_cargo_value > 0:
+                return [unit.transfer(0, highest_cargo_index, highest_cargo_value, repeat=0)]
+            else:
+                return []
         else:
             return []
     
