@@ -158,12 +158,20 @@ class RobotController:
                 obs_np = live_obs_parser(obs_dict, unit, factory_unit)
                 obs = torch.tensor(obs_np, dtype=torch.float).to(self.device)
                 
+                retry_counter = 0
+                
                 if role == "Ice Miner":
-                    #actions[unit_id] = self.control_ice_miner(unit_id, unit, ice_tile_locations)
                     actions[unit_id] = ice_model.get_live_action(obs, unit, self)
+                    while actions[unit_id] == [] and retry_counter < 5:
+                        actions[unit_id] = ice_model.get_live_action(obs, unit, self)
+                        retry_counter += 1
+                        
                 elif role == "Ore Miner":
-                    #actions[unit_id] = self.control_ore_miner(unit_id, unit, ore_tile_locations)
                     actions[unit_id] = ore_model.get_live_action(obs, unit, self)
+                    while actions[unit_id] == [] and retry_counter < 5:
+                        actions[unit_id] = ore_model.get_live_action(obs, unit, self)
+                        retry_counter += 1
+                        
                 elif role == "Rubble Cleaner":
                     actions[unit_id] = self.control_rubble_cleaner(unit_id, unit, rubble_tile_locations)
                 else:

@@ -22,11 +22,11 @@ class Agent():
         
         self.lux_env_variables = InputDimensions()
         
-        self.ice_model = PPO(self.lux_env_variables, 0, False) # Index 0 = ice, shaping False = light
-        #self.ice_model.load(True, "models/rbppo_checkpoint_ice_light.pth") # REMOVE COMMENT WHEN LIVE
+        self.ice_model = PPO(self.lux_env_variables, 0, 1) # Index 0 = ice, shaping [0, 1, 2] = simple, moderate, complex
+        self.ice_model.load(True, "models/rbppo_checkpoint_ice_moderate.pth") # REMOVE COMMENT WHEN LIVE
         
-        self.ore_model = PPO(self.lux_env_variables, 1, False) # Index 1 = ore, shaping False = light
-        #self.ore_model.load(True, "models/rbppo_checkpoint_ore_light.pth") # REMOVE COMMENT WHEN LIVE
+        self.ore_model = PPO(self.lux_env_variables, 1, 1) # Index 1 = ore, shaping [0, 1, 2] = simple, moderate, complex
+        self.ore_model.load(True, "models/rbppo_checkpoint_ore_moderate.pth") # REMOVE COMMENT WHEN LIVE
 
     def early_setup(self, step: int, obs, remainingOverageTime: int = 60):
         if step == 0:
