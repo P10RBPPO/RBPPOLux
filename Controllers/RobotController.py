@@ -142,12 +142,6 @@ class RobotController:
         """
         actions = dict()
         self.update_game_state(game_state)  # Update the game state
-        # Clear and repopulate the occupied tiles set
-
-
-        #ice_tile_locations = self.get_ice_tile_locations(self.game_state)
-        #ore_tile_locations = self.get_ore_tile_locations(self.game_state)
-        rubble_tile_locations = self.get_rubble_tile_locations(self.game_state)
 
         for unit_id, unit in self.units.items():
             if len(unit.action_queue) == 0:
@@ -173,6 +167,7 @@ class RobotController:
                         retry_counter += 1
                         
                 elif role == "Rubble Cleaner":
+                    rubble_tile_locations = self.get_rubble_tile_locations(self.game_state)
                     actions[unit_id] = self.control_rubble_cleaner(unit_id, unit, rubble_tile_locations)
                 else:
                     actions[unit_id] = []
